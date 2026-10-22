@@ -15,6 +15,10 @@ pub struct Settings {
     pub widget_enabled: bool,
     pub widget_mode: usize,
     pub close_to_menu_bar: bool,
+    /// 0 follows the system language, 1 English, 2 Thai.
+    pub language: usize,
+    /// 0 follows the system, 1 light (the SSD Scope look), 2 dark.
+    pub appearance: usize,
 }
 impl Default for Settings {
     fn default() -> Self {
@@ -24,6 +28,8 @@ impl Default for Settings {
             widget_enabled: true,
             widget_mode: 0,
             close_to_menu_bar: true,
+            language: 0,
+            appearance: 0,
         }
     }
 }
@@ -48,14 +54,20 @@ impl Settings {
         ensure!(bytes.len() <= 16 * 1024, "Settings file too large");
         let value: Self = serde_json::from_slice(&bytes)?;
         ensure!(
-            value.version == 1 && value.widget_mode <= 2,
+            value.version == 1
+                && value.widget_mode <= 2
+                && value.language <= 2
+                && value.appearance <= 2,
             "Unsupported settings"
         );
         Ok(value)
     }
     pub fn save(&self, path: &Path) -> Result<()> {
         ensure!(
-            self.version == 1 && self.widget_mode <= 2,
+            self.version == 1
+                && self.widget_mode <= 2
+                && self.language <= 2
+                && self.appearance <= 2,
             "Invalid settings"
         );
         let parent = path.parent().context("Missing settings directory")?;

@@ -20,7 +20,7 @@ pub struct Volume {
     pub free: Option<u64>,
     pub writable: bool,
 }
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct Health {
     pub status: String,
     pub temperature_c: Option<f64>,

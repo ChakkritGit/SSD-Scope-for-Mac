@@ -1,3 +1,4 @@
+use crate::ui::i18n::tr;
 use eframe::egui;
 use muda::{
     AboutMetadata, Menu, MenuEvent, MenuItem, PredefinedMenuItem, Submenu,
@@ -21,7 +22,7 @@ impl NativeMenu {
         let app = Submenu::new("SSD Scope", true);
         app.append_items(&[
             &PredefinedMenuItem::about(
-                Some("About SSD Scope"),
+                Some(tr("About SSD Scope").as_str()),
                 Some(AboutMetadata {
                     name: Some("SSD Scope for Mac".into()),
                     version: Some(env!("CARGO_PKG_VERSION").into()),
@@ -34,14 +35,14 @@ impl NativeMenu {
             &PredefinedMenuItem::separator(),
             &PredefinedMenuItem::services(None),
             &PredefinedMenuItem::separator(),
-            &PredefinedMenuItem::hide(Some("Hide SSD Scope")),
+            &PredefinedMenuItem::hide(Some(tr("Hide SSD Scope").as_str())),
             &PredefinedMenuItem::hide_others(None),
             &PredefinedMenuItem::show_all(None),
             &PredefinedMenuItem::separator(),
             &item(QUIT, "Quit SSD Scope", Some(Code::KeyQ)),
         ])?;
         let file = Submenu::with_items(
-            "File",
+            tr("File"),
             true,
             &[
                 &item(REFRESH, "Refresh drives", Some(Code::KeyR)),
@@ -50,27 +51,27 @@ impl NativeMenu {
             ],
         )?;
         let view = Submenu::with_items(
-            "View",
+            tr("View"),
             true,
             &[
-                &item("scope.overview", "Overview", Some(Code::Digit1)),
-                &item("scope.smart", "S.M.A.R.T.", Some(Code::Digit2)),
-                &item("scope.tools", "Tools", Some(Code::Digit3)),
-                &item("scope.backup", "File backup", Some(Code::Digit4)),
+                &item("scope.overview", "Dashboard", Some(Code::Digit1)),
+                &item("scope.smart", "Health", Some(Code::Digit2)),
+                &item("scope.tools", "Performance", Some(Code::Digit3)),
+                &item("scope.backup", "Backup", Some(Code::Digit4)),
             ],
         )?;
         let window = Submenu::with_items(
-            "Window",
+            tr("Window"),
             true,
             &[
                 &PredefinedMenuItem::minimize(None),
-                &PredefinedMenuItem::maximize(Some("Zoom")),
+                &PredefinedMenuItem::maximize(Some(tr("Zoom").as_str())),
                 &PredefinedMenuItem::separator(),
                 &item(SHOW, "Open dashboard", None),
             ],
         )?;
         let help = Submenu::with_items(
-            "Help",
+            tr("Help"),
             true,
             &[
                 &item("scope.help", "USB SMART support", None),
@@ -107,7 +108,7 @@ impl NativeMenu {
 fn item(id: &str, title: &str, key: Option<Code>) -> MenuItem {
     MenuItem::with_id(
         id,
-        title,
+        tr(title),
         true,
         key.map(|key| Accelerator::new(Modifiers::META, key)),
     )

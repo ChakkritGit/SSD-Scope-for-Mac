@@ -11,6 +11,21 @@ fn main() {
 fn execute() -> Result<()> {
     let args: Vec<_> = std::env::args().skip(1).collect();
     match args.first().map(String::as_str) {
+        Some("import-usb-report") if args.len() == 3 => {
+            let inventory = disks::inventory()?;
+            let drive = inventory
+                .drives
+                .iter()
+                .find(|d| d.id == args[2])
+                .ok_or_else(|| anyhow::anyhow!("Selected disk is unavailable"))?;
+            let snapshot = ssd_scope_mac::usb_cache::import(
+                Path::new(&args[1]),
+                drive,
+                &ssd_scope_mac::usb_cache::default_path(),
+                &Control::default(),
+            )?;
+            println!("{}", serde_json::to_string_pretty(&snapshot)?);
+        }
         Some("decode-usb-report") if args.len() == 2 => {
             let raw = ssd_scope_mac::usb_report::load(Path::new(&args[1]))?;
             let report = ssd_scope_mac::usb_report::decode(&raw, &Control::default())?;
@@ -53,7 +68,7 @@ fn execute() -> Result<()> {
             .display()
         ),
         None | Some("--help") => println!(
-            "scope-cli inventory\nscope-cli smart diskN\nscope-cli decode-usb-report /capture.json\nscope-cli benchmark /test/folder\nscope-cli backup /source/folder /destination/parent\n\nUSB reports are decoded offline as a regular user.\nbenchmark writes then removes a new 256 MiB temporary file.\nbackup creates a NEW file backup and verifies regular-file SHA-256. No erase or raw clone commands."
+            "scope-cli inventory\nscope-cli smart diskN\nscope-cli decode-usb-report /capture.json\nscope-cli import-usb-report /capture.json diskN\nscope-cli benchmark /test/folder\nscope-cli backup /source/folder /destination/parent\n\nUSB reports are decoded offline as a regular user.\nbenchmark writes then removes a new 256 MiB temporary file.\nbackup creates a NEW file backup and verifies regular-file SHA-256. No erase or raw clone commands."
         ),
         _ => bail!("Invalid command. Use --help"),
     }

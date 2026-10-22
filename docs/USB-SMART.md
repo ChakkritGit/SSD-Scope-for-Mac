@@ -1,5 +1,11 @@
 # USB SMART diagnosis
 
+Update 2026-10-22: the separate USB BOT/SAT reader successfully captured SMART attributes from
+the actual TS256GMTS830S behind this RTL9201, retaining Full Security. Temperature was 52 C and
+driver restoration succeeded. Overall SMART status remains Unknown because return-status sense
+was unavailable. Version 0.4.0 imports saved captures into the GUI/widget with explicit timestamps.
+See [DIRECT-USB.md](DIRECT-USB.md). The older smartctl/macOS results below describe mounted access.
+
 Observed read-only on macOS 27.2 arm64, 2026-10-21:
 
 | Item | Observed value |
@@ -36,12 +42,12 @@ The kernel extension also passed codesign verification and contains arm64e. The 
 
 The app detects the bridge, reads real activity counters and reports missing SMART transport explicitly.
 It can normalize a successful report if a compatible trusted driver exposes it later. Actual USB
-temperature/endurance reading remains unverified on this device; missing values do not establish health.
+continuous temperature/endurance monitoring remains unavailable; missing values do not establish health.
 
 See the [follow-up native transport review](NATIVE-TRANSPORT.md) for the supplied ZIP's exact
 IDENTIFY commands, the Apple SCSI interface probe and successfully read BOT/UAS descriptors.
-Direct USB transport is an implementation gap in this app; smartctl failure does not prove that
-every possible macOS approach requires a kernel extension.
+Direct USB snapshot transport is now implemented and verified on this SSD; it requires releasing
+the drive from macOS temporarily. smartctl failure did not establish a kernel-extension requirement.
 
 ## Keeping Full Security
 

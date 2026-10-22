@@ -17,6 +17,14 @@ Captured files contain drive health data. ATA serial/WWN fields are removed, but
 still be kept private. Offline report reads are bounded, reject symlinks and nonregular files,
 and never interpret a missing SMART RETURN STATUS as passing health. Decoding refuses root.
 
+Explicit GUI/CLI import binds a saved capture to a mounted volume UUID, reviewed USB bridge and
+matching ATA capacity. This is a user-selected association, not cryptographic authentication of
+the capture's origin. Cached reports are private 0600 files in an owned 0700 directory, bounded to
+1 MiB/16 captures, and validated before offline decoding. Symlinks, FIFOs, public files, duplicate
+UUID bindings and future timestamps are refused. A disk-number change does not reassign a reading
+to another volume. Snapshot temperatures always carry snapshot/time labels and are never plotted
+as new live temperature samples. Removing a saved snapshot does not modify the SSD's SMART data.
+
 Benchmarks create an exclusive unpredictable temporary file in the selected directory, disable
 its OS cache, verify read-back contents and remove only that owned file. Device paths and invalid
 sizes are rejected; at least 1 GB headroom beyond the test size is required.

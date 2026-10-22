@@ -41,7 +41,7 @@ fn execute() -> Result<()> {
             }
         }
         None | Some("--help") => println!(
-            "scope-usb-smart probe diskN\n\nscope-usb-smart capture-read diskN --registry-id NUMBER --allow-usb-capture\n\nExperimental: capture-read requires administrator authorization and an UNMOUNTED target.\nIt temporarily captures only the reviewed RTL9201 USB device, reads IDENTIFY/SMART/SENSE,\nand attempts to restore the macOS driver. It never unmounts, formats or writes SSD data.\nRun the helper from the internal disk / an owned temporary folder, after closing SSD files.\nFull Security is retained. Hardware support has not yet been verified."
+            "scope-usb-smart probe diskN\n\nscope-usb-smart capture-read diskN --registry-id NUMBER --allow-usb-capture\n\nExperimental: capture-read requires administrator authorization and an UNMOUNTED target.\nIt temporarily captures only the reviewed RTL9201 USB device, reads IDENTIFY/SMART/SENSE,\nand attempts to restore the macOS driver. It never unmounts, formats or writes SSD data.\nRun the helper from the internal disk / an owned temporary folder, after closing SSD files.\nFull Security is retained. Hardware validation is limited to TS256GMTS830S / RTL9201; see docs/DIRECT-USB.md."
         ),
         _ => bail!("Invalid arguments. Use --help; arbitrary CDBs and ATA writes are not accepted"),
     }

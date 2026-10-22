@@ -1,8 +1,8 @@
 # SMART implementation status and source review
 
-The target acceptance criterion is a valid temperature/health reading from the actual TSD302 SSD
-on Apple Silicon macOS. **That criterion is not met.** The existing dashboard, I/O counters and
-temporary-file regression tests do not substitute for it.
+The actual SSD now returns temperature and SMART attributes through a separate user-authorized
+USB capture on Apple Silicon macOS with Full Security. Overall SMART health and verified endurance
+remain unavailable. This is a snapshot path; mounted continuous USB SMART monitoring is not delivered.
 
 ## What the supplied ZIP contains
 
@@ -46,14 +46,18 @@ The separate `scope-usb-smart` helper now implements fixed BOT/SAT data-in comma
 rusb and libusb 1.0.30. Read-only `probe` matched the actual registry ID, USB address and cached
 BOT descriptor; both disk inventory and the kernel mount check found `/Volumes/SSD256GB`.
 Capture refuses that mounted state. Protocol, mount guards and offline decoding are fixture-tested.
-No USB capture or actual SMART read has been attempted with this helper yet.
+On 2026-10-22 the owner explicitly authorized one capture after unmounting. SAT-16 returned
+IDENTIFY/SMART data and thresholds from TS256GMTS830S. Temperature was 52 C, power-on hours 9,503,
+and cycles 5,775; driver restoration was reported successful. The private capture validated
+sector checksums and decoded offline. No private capture file or serial is committed to this repository.
+SMART RETURN STATUS sense was unavailable; overall health remains Unknown.
 
-This remains an unverified hardware path. The
+This remains a limited experimental hardware path. The
 [libusb macOS backend](https://github.com/libusb/libusb/blob/master/libusb/os/darwin_usb.c)
 and [capture implementation discussion](https://github.com/libusb/libusb/pull/911)
 document whole-device capture with root privilege or the appropriate entitlement and user
-authorization. This is a distinct approach from installing a SAT kernel extension. Neither capture
-nor a security-policy change has been attempted here. The current project is on the target SSD,
+authorization. This is a distinct approach from installing a SAT kernel extension. No security-policy
+change was made. The current project is on the target SSD,
 so capturing it during active work would interrupt that workspace.
 
 See [DIRECT-USB.md](DIRECT-USB.md) for the implemented allowlist, recovery limits and staged

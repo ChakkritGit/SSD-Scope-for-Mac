@@ -177,7 +177,7 @@ pub fn diagnose(id: &str, control: &Control) -> Result<SmartReport> {
             && all.contains("Not a device of type 'scsi'")
         {
             report.conclusion = "transport_unavailable".into();
-            report.explanation="Live USB SMART is unavailable through the current macOS driver. A separate experimental USB snapshot reader is included, but has not yet been validated on this SSD; it requires an unmounted drive and administrator authorization. See docs/DIRECT-USB.md. The SSD's SMART capability is not disproven.".into();
+            report.explanation="Live USB SMART is unavailable through the current macOS driver. A separate USB snapshot reader has been verified on the tested RTL9201 / TS256GMTS830S; it requires an unmounted drive and administrator authorization. Import its capture in the SMART page to view saved readings. See docs/DIRECT-USB.md. The SSD's SMART capability is not disproven.".into();
         } else {
             report.explanation="No valid SMART report was returned. Review the exact device responses below; missing values do not establish the SSD's health or capability.".into();
         }

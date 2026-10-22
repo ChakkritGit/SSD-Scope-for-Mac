@@ -1,6 +1,6 @@
 [package]
 name = "ssd-scope-mac"
-version = "0.3.0"
+version = "0.5.0"
 edition = "2024"
 license = "MIT"
 description = "Independent SSD monitor and file backup utility for macOS Apple Silicon"

@@ -95,6 +95,246 @@ fn fixture() -> RawCapture {
     }
 }
 
+fn cache_fixture() -> (
+    RawCapture,
+    ssd_scope_mac::disks::Drive,
+    ssd_scope_mac::native::UsbBridge,
+) {
+    use ssd_scope_mac::{
+        disks::{Drive, Health, Volume},
+        native::UsbBridge,
+    };
+    let mut capture = fixture();
+    let mut id = usb_sat::unhex(&capture.identity_redacted_hex, 512).unwrap();
+    id[98..100].copy_from_slice(&0x0200u16.to_le_bytes());
+    fix_checksum(&mut id);
+    capture.identity_redacted_hex = usb_sat::hex(&id);
+    let drive = Drive {
+        id: "disk6".into(),
+        name: "Fixture SSD".into(),
+        capacity: 256_000_000_000,
+        internal: false,
+        ssd: Some(true),
+        bus: "USB".into(),
+        health: Health::parse(&plist::Dictionary::new()),
+        volumes: vec![Volume {
+            id: "disk7s1".into(),
+            uuid: Some("aaaaaaaa-1111-2222-3333-444444444444".into()),
+            name: "Fixture".into(),
+            mount: "/fixture".into(),
+            filesystem: "APFS".into(),
+            capacity: 256_000_000_000,
+            free: None,
+            writable: true,
+        }],
+        captured_unix: 1,
+    };
+    let usb = UsbBridge {
+        vendor_id: 0x0bda,
+        product_id: 0x9201,
+        ..Default::default()
+    };
+    (capture, drive, usb)
+}
+
+#[test]
+fn ata_capacity_validates_lba_sector_size_and_overflow() -> Result<()> {
+    let (capture, _, _) = cache_fixture();
+    let mut id = usb_sat::unhex(&capture.identity_redacted_hex, 512)?;
+    assert_eq!(usb_sat::identify_capacity(&id)?, 256_000_000_000);
+    id[212..214].copy_from_slice(&0x5000u16.to_le_bytes());
+    id[234..238].copy_from_slice(&2048u32.to_le_bytes());
+    fix_checksum(&mut id);
+    assert_eq!(usb_sat::identify_capacity(&id)?, 2_048_000_000_000);
+    id[234..238].copy_from_slice(&257u32.to_le_bytes());
+    fix_checksum(&mut id);
+    assert!(usb_sat::identify_capacity(&id).is_err());
+    id[212..214].copy_from_slice(&0x4000u16.to_le_bytes());
+    id[200..208].copy_from_slice(&u64::MAX.to_le_bytes());
+    fix_checksum(&mut id);
+    assert!(usb_sat::identify_capacity(&id).is_err());
+    id[166..168].fill(0);
+    id[120..124].copy_from_slice(&0x0fff_ffffu32.to_le_bytes());
+    fix_checksum(&mut id);
+    assert_eq!(usb_sat::identify_capacity(&id)?, 137_438_952_960);
+    id[98..100].fill(0);
+    fix_checksum(&mut id);
+    assert!(usb_sat::identify_capacity(&id).is_err());
+    Ok(())
+}
+
+#[test]
+fn snapshot_binding_follows_uuid_but_refuses_other_disks_or_bridges() -> Result<()> {
+    use ssd_scope_mac::usb_cache::SavedCapture;
+    let (capture, mut drive, mut usb) = cache_fixture();
+    let saved = SavedCapture::bind(capture.clone(), &drive, &usb)?;
+    drive.id = "disk42".into();
+    assert!(saved.matches(&drive, &usb));
+    drive.volumes[0].uuid = Some("AAAAAAAA-1111-2222-3333-444444444444".into());
+    assert!(saved.matches(&drive, &usb));
+    drive.capacity += 512;
+    assert!(!saved.matches(&drive, &usb));
+    assert!(SavedCapture::bind(capture.clone(), &drive, &usb).is_err());
+    drive.capacity -= 512;
+    usb.product_id = 0x9999;
+    assert!(!saved.matches(&drive, &usb));
+    assert!(SavedCapture::bind(capture.clone(), &drive, &usb).is_err());
+    usb.product_id = 0x9201;
+    drive.internal = true;
+    assert!(SavedCapture::bind(capture.clone(), &drive, &usb).is_err());
+    drive.internal = false;
+    drive.volumes[0].uuid = Some("bbbbbbbb-1111-2222-3333-444444444444".into());
+    assert!(!saved.matches(&drive, &usb));
+    drive.volumes.clear();
+    assert!(SavedCapture::bind(capture, &drive, &usb).is_err());
+    Ok(())
+}
+
+#[test]
+fn snapshot_cache_is_private_atomic_bounded_and_removable() -> Result<()> {
+    use ssd_scope_mac::usb_cache::{SavedCapture, Store};
+    use std::os::unix::fs::PermissionsExt;
+    let temp = tempfile::tempdir()?;
+    let path = temp.path().join("private/cache.json");
+    let (capture, drive, usb) = cache_fixture();
+    let mut store = Store::default();
+    store.upsert(SavedCapture::bind(capture, &drive, &usb)?)?;
+    store.save(&path)?;
+    assert_eq!(fs::metadata(&path)?.permissions().mode() & 0o777, 0o600);
+    assert_eq!(
+        fs::metadata(path.parent().unwrap())?.permissions().mode() & 0o777,
+        0o700
+    );
+    let mut loaded = Store::load(&path)?;
+    assert_eq!(loaded.captures.len(), 1);
+    loaded.upsert(loaded.captures[0].clone())?;
+    assert_eq!(loaded.captures.len(), 1);
+    loaded.remove(&drive);
+    loaded.save(&path)?;
+    assert!(Store::load(&path)?.captures.is_empty());
+    fs::write(&path, vec![b' '; 1024 * 1024 + 1])?;
+    assert!(Store::load(&path).is_err());
+    Ok(())
+}
+
+#[test]
+fn snapshot_cache_refuses_symlinks_fifo_public_files_and_unsafe_parent() -> Result<()> {
+    use ssd_scope_mac::usb_cache::Store;
+    use std::os::unix::fs::PermissionsExt;
+    let temp = tempfile::tempdir()?;
+    fs::set_permissions(temp.path(), fs::Permissions::from_mode(0o700))?;
+    let file = temp.path().join("cache.json");
+    Store::default().save(&file)?;
+    let alias = temp.path().join("alias.json");
+    symlink(&file, &alias)?;
+    assert!(Store::load(&alias).is_err());
+    fs::set_permissions(&file, fs::Permissions::from_mode(0o644))?;
+    assert!(Store::load(&file).is_err());
+    let fifo = temp.path().join("fifo");
+    let name = std::ffi::CString::new(fifo.to_str().unwrap())?;
+    assert_eq!(unsafe { libc::mkfifo(name.as_ptr(), 0o600) }, 0);
+    assert!(Store::load(&fifo).is_err());
+    let directory = temp.path().join("public");
+    fs::create_dir(&directory)?;
+    fs::set_permissions(&directory, fs::Permissions::from_mode(0o755))?;
+    assert!(
+        Store::default()
+            .save(&directory.join("cache.json"))
+            .is_err()
+    );
+    let linked = temp.path().join("linked");
+    symlink(&directory, &linked)?;
+    assert!(Store::default().save(&linked.join("cache.json")).is_err());
+    Ok(())
+}
+
+#[test]
+fn snapshot_cache_rejects_future_captures_duplicate_bindings_and_versions() -> Result<()> {
+    use ssd_scope_mac::usb_cache::{SavedCapture, Store};
+    let temp = tempfile::tempdir()?;
+    let file = temp.path().join("cache.json");
+    let (mut capture, drive, usb) = cache_fixture();
+    capture.captured_unix = ssd_scope_mac::disks::unix_now() + 3600;
+    assert!(SavedCapture::bind(capture, &drive, &usb).is_err());
+    let (capture, drive, usb) = cache_fixture();
+    let saved = SavedCapture::bind(capture, &drive, &usb)?;
+    let mut store = Store {
+        version: 1,
+        captures: vec![saved.clone(), saved],
+    };
+    assert!(store.save(&file).is_err());
+    store.captures.clear();
+    store.version = 99;
+    assert!(store.save(&file).is_err());
+    Ok(())
+}
+
+#[test]
+fn captured_attribute_raw_zero_does_not_become_zero_or_full_health_percent() -> Result<()> {
+    let mut capture = fixture();
+    let mut bytes = usb_sat::unhex(&capture.smart_data_hex, 512)?;
+    let p = 2 + 4 * 12;
+    bytes[p] = 169;
+    bytes[p + 1] = 0x32;
+    bytes[p + 3] = 100;
+    bytes[p + 4] = 100;
+    fix_checksum(&mut bytes);
+    capture.smart_data_hex = usb_sat::hex(&bytes);
+    capture.status_sense_hex = None;
+    let snapshot = usb_report::decode(&capture, &Control::default())?;
+    let attribute = snapshot
+        .ata_attributes
+        .iter()
+        .find(|a| a.id == 169)
+        .unwrap();
+    assert_eq!(attribute.normalized, Some(100));
+    assert_eq!(attribute.raw, "0");
+    assert_eq!(snapshot.health.status, "Unknown");
+    assert!(snapshot.health.percentage_used.is_none());
+    assert_eq!(snapshot.threshold_counts(), (1, 0));
+    assert_eq!(snapshot.age(61), "1m ago");
+    assert_eq!(snapshot.captured_at(), "1970-01-01 00:00 UTC");
+    assert!(snapshot.label().contains("not live"));
+    Ok(())
+}
+
+#[test]
+fn erase_count_wear_follows_the_windows_ssd_scope_ratio() {
+    let raw = |pairs: &[(&str, f64)]| {
+        pairs
+            .iter()
+            .map(|(k, v)| ((*k).to_owned(), *v))
+            .collect::<std::collections::BTreeMap<_, _>>()
+    };
+    let worn = raw(&[
+        ("Average_Erase_Count", 2366.0),
+        ("Max_Erase_Count_of_Spec", 1500.0),
+    ]);
+    let used = usb_report::erase_count_wear(&worn).unwrap();
+    assert!((used - 157.73).abs() < 0.01);
+    let health = ssd_scope_mac::disks::Health {
+        percentage_used: Some(used),
+        ..Default::default()
+    };
+    assert_eq!(health.remaining_life_estimate(), Some(0.0));
+    let fresh = raw(&[
+        ("Average_Erase_Count", 150.0),
+        ("Max_Erase_Count_of_Spec", 3000.0),
+    ]);
+    assert_eq!(usb_report::erase_count_wear(&fresh), Some(5.0));
+    for missing in [
+        raw(&[("Average_Erase_Count", 10.0)]),
+        raw(&[("Max_Erase_Count_of_Spec", 1500.0)]),
+        raw(&[
+            ("Average_Erase_Count", 10.0),
+            ("Max_Erase_Count_of_Spec", 0.0),
+        ]),
+        raw(&[("Remaining_Lifetime_Perc", 0.0)]),
+    ] {
+        assert_eq!(usb_report::erase_count_wear(&missing), None);
+    }
+}
+
 #[test]
 fn commands_are_data_in_and_cannot_encode_disk_writes() {
     for mode in [SatMode::Sat12, SatMode::Sat16] {

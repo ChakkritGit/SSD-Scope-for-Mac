@@ -26,5 +26,17 @@ REA 6.7.0, commit `f801b2fbfd28f4e3713adefddc7bd73db44c284c` in morluto/rea,
 was used locally for static PE resource inspection. The installer was not executed.
 REA did not supply app source. The native implementation, charts and geometric icons are original Rust code.
 
+For version 0.5.0, the health formula was taken from REA's .NET metadata inspection of `SSDScopeApp.exe`.
+That executable was carved from the installer's LZMA data without running the installer.
+The method is `SSDScopeApp.Utilities.CountHealthPercentage`, whose CIL and user strings were read.
+Only the behavior was reimplemented, in `usb_report::erase_count_wear`:
+
+- (rated erase cycles − average erase count) ÷ rated erase cycles
+- NVMe health is 100 − percentage used
+- a 3000-cycle default applies when the rating attribute is missing
+
+No decompiled code, strings or assets were copied. The extracted Windows binaries remain local and
+are not part of the repository or the app.
+
 smartctl is a separately bundled program. Its exact unmodified source and GPL terms are supplied
 as described in THIRD_PARTY_NOTICES.md.

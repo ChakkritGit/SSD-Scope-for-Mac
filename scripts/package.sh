@@ -8,6 +8,14 @@ fi
 "$PROJECT/scripts/build-libusb.sh"
 export MACOSX_DEPLOYMENT_TARGET=14.0
 APP="$OUTPUT/SSD Scope for Mac.app"
+# A stable signing identity keeps macOS privacy grants (removable volumes) across updates;
+# an ad-hoc signature changes with every build, so macOS asks again after each one.
+if [ -z "${SIGN_IDENTITY:-}" ]; then
+  SIGN_IDENTITY="$(/usr/bin/security find-identity -v -p codesigning 2>/dev/null \
+    | /usr/bin/awk -F'"' '/Developer ID Application|Apple Development/ { print $2; exit }')"
+fi
+SIGN_IDENTITY="${SIGN_IDENTITY:--}"
+rm -rf "$APP"
 "$PROJECT/scripts/cargo.sh" build --release --locked --features experimental-usb --target aarch64-apple-darwin
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources" "$APP/Contents/Frameworks"
 cp "$PROJECT/target/aarch64-apple-darwin/release/ssd-scope-mac" "$APP/Contents/MacOS/ssd-scope-mac"
@@ -44,25 +52,29 @@ cat > "$APP/Contents/Info.plist" <<'PLIST'
 <key>CFBundleIdentifier</key><string>io.local.ssdscope.rust</string>
 <key>CFBundleExecutable</key><string>ssd-scope-mac</string>
 <key>CFBundlePackageType</key><string>APPL</string>
-<key>CFBundleShortVersionString</key><string>0.3.0</string>
-<key>CFBundleVersion</key><string>4</string>
+<key>CFBundleShortVersionString</key><string>0.5.0</string>
+<key>CFBundleVersion</key><string>6</string>
 <key>CFBundleIconFile</key><string>Scope</string>
 <key>LSMinimumSystemVersion</key><string>14.0</string>
 <key>NSHighResolutionCapable</key><true/>
 <key>NSSupportsAutomaticGraphicsSwitching</key><true/>
 <key>NSPrincipalClass</key><string>NSApplication</string>
+<key>NSRemovableVolumesUsageDescription</key><string>SSD Scope shows free space, activity and health for external drives.</string>
 </dict></plist>
 PLIST
 if [ -d "$PROJECT/THIRD_PARTY_LICENSES" ]; then
   mkdir -p "$APP/Contents/Resources/THIRD_PARTY_LICENSES"
   cp -R "$PROJECT/THIRD_PARTY_LICENSES/." "$APP/Contents/Resources/THIRD_PARTY_LICENSES/"
 fi
-/usr/bin/codesign --force --sign - "$APP/Contents/MacOS/smartctl"
-for BINARY in scope-cli scope-usb-smart; do
-  /usr/bin/codesign --force --sign - "$APP/Contents/MacOS/$BINARY"
+RUNTIME=(); [ "$SIGN_IDENTITY" != "-" ] && RUNTIME=(--options runtime)
+sign() { /usr/bin/codesign --force --timestamp=none ${RUNTIME[@]+"${RUNTIME[@]}"} --sign "$SIGN_IDENTITY" "$@"; }
+sign "$APP/Contents/Frameworks/libusb-1.0.0.dylib"
+for BINARY in smartctl scope-cli scope-usb-smart; do
+  sign "$APP/Contents/MacOS/$BINARY"
 done
-/usr/bin/codesign --force --sign - "$APP/Contents/Frameworks/libusb-1.0.0.dylib"
-/usr/bin/codesign --force --sign - "$APP"
+sign "$APP"
 /usr/bin/codesign --verify --deep --strict "$APP"
+rm -f "$OUTPUT/SSD-Scope-for-Mac-arm64.zip"
 /usr/bin/ditto -c -k --sequesterRsrc --keepParent "$APP" "$OUTPUT/SSD-Scope-for-Mac-arm64.zip"
-printf 'App: %s\nArchive: %s\n' "$APP" "$OUTPUT/SSD-Scope-for-Mac-arm64.zip"
+"$PROJECT/scripts/make-dmg.sh" "$APP" "$OUTPUT/SSD-Scope-for-Mac-0.5.0-arm64.dmg"
+printf 'App: %s\nSigned by: %s\nArchive: %s\n' "$APP" "$SIGN_IDENTITY" "$OUTPUT/SSD-Scope-for-Mac-arm64.zip"

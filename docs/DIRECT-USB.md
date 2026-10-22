@@ -1,8 +1,10 @@
 # Experimental direct USB SMART capture
 
-Version 0.3.0 implements a separate Rust diagnostic for the reviewed TSD302 / RTL9201
-USB bridge (0bda:9201). **Actual SMART temperature/health on this SSD is not yet verified.**
-Descriptor discovery and synthetic fixtures are not hardware acceptance tests.
+Version 0.4.0 provides a separate Rust diagnostic and GUI import for the reviewed TSD302 /
+RTL9201 USB bridge (0bda:9201). A user-authorized SAT-16 capture on 2026-10-22 returned valid
+SMART data from TS256GMTS830S: 52 C, 9,503 hours and 5,775 power cycles. The helper reported
+successful driver restoration. SMART RETURN STATUS sense was unavailable; overall status is
+Unknown. Validation is limited to this device and one capture; continuous USB monitoring is unavailable.
 
 Full Security remains enabled. No kernel extension, daemon, startup item or security-policy
 change is installed. The dashboard does not request root or capture USB during polling.
@@ -89,8 +91,33 @@ sudo ./MacOS/scope-usb-smart capture-read diskN --registry-id NUMBER --allow-usb
 The report redacts ATA serial and WWN fields but still contains private health/identity data.
 Do not commit it to GitHub. Decoding uses smartctl's offline replay parser, not another live read.
 Overall health is accepted only from valid current ATA return registers. Missing status remains
-Unknown even if temperature attributes decode. Values are a timestamped snapshot; GUI/widget
-import and continuous USB SMART monitoring are not implemented in this release.
+Unknown even if temperature attributes decode. Values are a timestamped snapshot.
+
+## Import into the app
+
+Mount the SSD again, open the app, select its data volume/drive and choose S.M.A.R.T. →
+Import USB snapshot. Pick `capture.json` from a read of that SSD (not the decoded snapshot.json).
+The importer checks ATA capacity and the reviewed bridge, then binds the explicitly selected
+mounted volume UUID. The same UUID/capacity/bridge must match on subsequent launches; disk numbers
+may change. A copied JSON file is not a cryptographically authenticated measurement, so import only
+a capture you know belongs to that SSD. Remove saved snapshot clears that drive's cached reading.
+
+Overview and SMART show the temperature, capture time/age and `not live` label. The temperature
+widget appends `snapshot`; its menu shows the capture date. I/O activity remains live. Raw and
+normalized ATA attributes are separate columns. An attribute's raw value named Remaining_Lifetime
+is not automatically interpreted as a percent; the app does not manufacture a health/endurance score.
+The count at/below nonzero attribute thresholds does not replace SMART RETURN STATUS.
+
+CLI import, as the regular user with the intended SSD mounted:
+
+```sh
+./MacOS/scope-cli import-usb-report /path/capture.json diskN
+```
+
+Captures are stored privately in `~/Library/Application Support/SSD Scope/usb-captures.json`
+(0600 file, 0700 owner directory), with bounded no-follow reads and atomic saves. They are never
+uploaded. Importing/reloading a capture performs offline decoding and cached discovery, not USB
+capture, unmounting or administrator authorization.
 
 ## Tests
 

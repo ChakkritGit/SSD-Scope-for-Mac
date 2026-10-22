@@ -1,6 +1,6 @@
 //! Allowlisted read-only SAT commands and strict BOT response parsing.
 //! This module performs no hardware I/O. USB capture lives in the separate helper.
-use anyhow::{Result, bail, ensure};
+use anyhow::{Context, Result, bail, ensure};
 use serde::{Deserialize, Serialize};
 use std::fmt::Write;
 
@@ -308,6 +308,36 @@ pub fn redacted_identity(bytes: &[u8]) -> Result<Vec<u8>> {
         result[511] = 0u8.wrapping_sub(result[..511].iter().fold(0u8, |s, b| s.wrapping_add(*b)));
     }
     Ok(result)
+}
+
+/// ATA logical capacity, used to reject a snapshot imported onto a different-size disk.
+pub fn identify_capacity(bytes: &[u8]) -> Result<u64> {
+    identify_model(bytes)?;
+    let word = |n: usize| u16::from_le_bytes([bytes[n * 2], bytes[n * 2 + 1]]);
+    ensure!(word(49) & (1 << 9) != 0, "ATA LBA capacity is unavailable");
+    let sectors = if word(83) & 0xc400 == 0x4400 {
+        let sectors = u64::from_le_bytes(bytes[200..208].try_into()?);
+        ensure!(
+            sectors <= 0x0000_ffff_ffff_ffff,
+            "Invalid 48-bit ATA capacity"
+        );
+        sectors
+    } else {
+        let sectors = u64::from(u32::from_le_bytes(bytes[120..124].try_into()?));
+        ensure!(sectors <= 0x0fff_ffff, "Invalid 28-bit ATA capacity");
+        sectors
+    };
+    let size = if word(106) & 0xd000 == 0x5000 {
+        u64::from(u32::from_le_bytes(bytes[234..238].try_into()?)).checked_mul(2)
+    } else {
+        Some(512)
+    }
+    .context("ATA sector size overflow")?;
+    ensure!(
+        sectors > 0 && (512..=65536).contains(&size) && size.is_power_of_two(),
+        "Invalid ATA capacity/sector size"
+    );
+    sectors.checked_mul(size).context("ATA capacity overflow")
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
