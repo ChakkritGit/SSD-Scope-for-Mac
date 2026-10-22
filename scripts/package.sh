@@ -66,8 +66,9 @@ if [ -d "$PROJECT/THIRD_PARTY_LICENSES" ]; then
   mkdir -p "$APP/Contents/Resources/THIRD_PARTY_LICENSES"
   cp -R "$PROJECT/THIRD_PARTY_LICENSES/." "$APP/Contents/Resources/THIRD_PARTY_LICENSES/"
 fi
-RUNTIME=(); [ "$SIGN_IDENTITY" != "-" ] && RUNTIME=(--options runtime)
-sign() { /usr/bin/codesign --force --timestamp=none ${RUNTIME[@]+"${RUNTIME[@]}"} --sign "$SIGN_IDENTITY" "$@"; }
+# No hardened runtime: the libusb helper must load the system IOUSBLib plug-in as root,
+# and the app is not notarized, so the runtime adds no Gatekeeper benefit here.
+sign() { /usr/bin/codesign --force --timestamp=none --sign "$SIGN_IDENTITY" "$@"; }
 sign "$APP/Contents/Frameworks/libusb-1.0.0.dylib"
 for BINARY in smartctl scope-cli scope-usb-smart; do
   sign "$APP/Contents/MacOS/$BINARY"

@@ -263,9 +263,9 @@ impl usb_sat::BulkIo for Session<'_> {
             bytes.len() == 31 && bytes.starts_with(b"USBC") && bytes[12] == 0x80,
             "Refusing non-read BOT command"
         );
-        Ok(self
-            .handle
-            .write_bulk(self.output, bytes, Duration::from_secs(5))?)
+        self.handle
+            .write_bulk(self.output, bytes, Duration::from_secs(5))
+            .context("Sending a USB read command failed")
     }
     fn read_input(&mut self, bytes: &mut [u8]) -> std::result::Result<usize, usb_sat::ReadError> {
         self.handle
@@ -276,7 +276,9 @@ impl usb_sat::BulkIo for Session<'_> {
             })
     }
     fn clear_input_halt(&mut self) -> Result<()> {
-        Ok(self.handle.clear_halt(self.input)?)
+        self.handle
+            .clear_halt(self.input)
+            .context("Clearing the USB endpoint failed")
     }
 }
 impl Drop for Session<'_> {
@@ -297,10 +299,10 @@ pub fn capture(id: &str, expected_registry_id: u64, cancelled: &AtomicBool) -> R
     );
     let before = plan(id)?;
     check_capture_plan(&before, expected_registry_id)?;
-    let ctx = Context::new()?;
-    let device = matching_device(&ctx, &before.usb)?;
-    let (input, output) = bot_endpoints(&device)?;
-    let handle = device.open()?;
+    let ctx = Context::new().context("libusb could not start")?;
+    let device = matching_device(&ctx, &before.usb).context("USB bridge not found by libusb")?;
+    let (input, output) = bot_endpoints(&device).context("Reading USB descriptors failed")?;
+    let handle = device.open().context("Opening the USB bridge failed")?;
     // Recheck mounts and the actual registry identity immediately before detaching anything.
     let fresh = plan(id)?;
     check_capture_plan(&fresh, expected_registry_id)?;
@@ -328,9 +330,23 @@ pub fn capture(id: &str, expected_registry_id: u64, cancelled: &AtomicBool) -> R
         cancelled,
     };
     let result = (|| -> Result<RawCapture> {
-        session.handle.claim_interface(0)?;
+        // After capture macOS re-enumerates the device; the interface can take a moment.
+        let mut attempt = 0;
+        loop {
+            match session.handle.claim_interface(0) {
+                Ok(()) => break,
+                Err(_) if attempt < 10 => {
+                    attempt += 1;
+                    std::thread::sleep(Duration::from_millis(300));
+                }
+                Err(e) => return Err(e).context("Claiming the USB interface failed"),
+            }
+        }
         session.claimed = true;
-        session.handle.set_alternate_setting(0, 0)?;
+        session
+            .handle
+            .set_alternate_setting(0, 0)
+            .context("Selecting the USB interface setting failed")?;
         let mut notes = Vec::new();
         for mode in [SatMode::Sat16, SatMode::Sat12] {
             let Some(identity) = session.sector(ReadCommand::Identify, mode, &mut notes)? else {
