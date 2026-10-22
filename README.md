@@ -59,6 +59,27 @@ attribute 0xA8 or 0xF5 (*Max Erase Count of Spec*). SSD Scope assumes 3000 when 
 example, a drive with an average of 2,366 erases against a rating of 1,500 is at 158% of its rated
 endurance, so it shows 0%. Such a drive can keep working for a while, but back up anything important.
 
+## Which drives can be read live
+
+| Drive | Live SMART (temperature, health) | How it is read |
+| --- | --- | --- |
+| Mac internal SSD | ✅ Yes | Automatically. No password needed. |
+| NVMe SSD in a Thunderbolt / USB4 enclosure | ✅ Yes¹ | Automatically. No password needed. |
+| SATA or NVMe SSD in a USB enclosure | ❌ No | **Health → Read SMART now**: unmount, password, saved reading |
+| SATA SSD in a Thunderbolt enclosure | ❌ No | Same as a USB enclosure (it sits behind a SATA bridge) |
+
+Internal and Thunderbolt NVMe drives appear to macOS as native NVMe devices. Their SMART data
+is read with the user's normal permissions. This was tested with the internal Apple SSD (AP0256Z):
+
+- temperature
+- *Percentage Used*, from which health is calculated
+- overall status
+
+¹ The enclosure must be connected to a Thunderbolt or USB4 port with a Thunderbolt/USB4 cable.
+Many enclosures (for example those using the ASMedia ASM2464PD chip) fall back to USB mode on
+other ports or cables. In USB mode the USB limits below apply. No Thunderbolt enclosure has been
+tested with this app yet.
+
 ## USB enclosures
 
 Windows SSD Scope reads SMART from USB drives through the Windows `DeviceIoControl` pass-through.
