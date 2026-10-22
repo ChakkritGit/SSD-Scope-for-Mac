@@ -279,10 +279,10 @@ impl ScopeApp {
                 "scope.backup" => self.tab = 3,
                 "scope.close" => ctx.send_viewport_cmd(egui::ViewportCommand::Close),
                 "scope.help" => open_url(
-                    "https://github.com/ChakkritGit/Transcend-SSD-Scope-for-Mac/blob/main/docs/USB-SMART.md",
+                    "https://github.com/ChakkritGit/SSD-Scope-for-Mac/blob/main/docs/USB-SMART.md",
                 ),
                 "scope.project" => {
-                    open_url("https://github.com/ChakkritGit/Transcend-SSD-Scope-for-Mac")
+                    open_url("https://github.com/ChakkritGit/SSD-Scope-for-Mac")
                 }
                 _ => {}
             }

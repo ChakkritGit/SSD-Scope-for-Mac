@@ -1183,7 +1183,7 @@ impl ScopeApp {
             ui.label(RichText::new(tr("Independent open-source utility (MIT). Not affiliated with or endorsed by Transcend. Health follows the formula used by Transcend SSD Scope for Windows: (rated erase cycles − average erase count) ÷ rated erase cycles.")).color(t.muted));
             ui.hyperlink_to(
                 tr("Source code on GitHub"),
-                "https://github.com/ChakkritGit/Transcend-SSD-Scope-for-Mac",
+                "https://github.com/ChakkritGit/SSD-Scope-for-Mac",
             );
         });
         if before.appearance != self.settings.appearance {
