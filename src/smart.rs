@@ -176,8 +176,8 @@ pub fn diagnose(id: &str, control: &Control) -> Result<SmartReport> {
         } else if report.bridge.as_ref().is_some_and(|b| !b.ata_smart_exposed)
             && all.contains("Not a device of type 'scsi'")
         {
-            report.conclusion = "driver_required".into();
-            report.explanation="This USB bridge has no SMART-capable driver in the current macOS stack. smartctl auto/ATA could not open it, and macOS smartctl has no SCSI transport for SAT. A compatible SAT SMART driver is required before the app can read health. The SSD's SMART capability is not disproven.".into();
+            report.conclusion = "transport_unavailable".into();
+            report.explanation="The app's current USB SMART transport did not return data: smartctl auto/ATA failed and its macOS SAT backend has no generic SCSI transport. Direct USB SMART access has not been implemented or validated in this app. A compatible SAT driver is one possible approach, not proof that other approaches are impossible. The SSD's SMART capability is not disproven.".into();
         } else {
             report.explanation="No valid SMART report was returned. Review the exact device responses below; missing values do not establish the SSD's health or capability.".into();
         }

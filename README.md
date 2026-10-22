@@ -1,7 +1,11 @@
-# Transcend SSD Scope for Mac
+# SSD Scope for Mac — experimental
 
 A clean, minimal Rust storage dashboard for macOS Apple Silicon, including M4.
-An independent project, not an official Transcend product.
+An independent prototype, not an official Transcend product or a complete port of SSD Scope.
+
+**The main USB SMART goal is incomplete.** On the tested TSD302 / RTL9201 SSD, this app
+still cannot read temperature, SMART health or endurance. UI, activity counters and file-operation
+tests do not establish SMART support. See [source and native transport review](docs/NATIVE-TRANSPORT.md).
 
 แอป Rust พร้อมกราฟกิจกรรม SSD จริง และวิดเจตบน menu bar ของ macOS
 
@@ -25,8 +29,10 @@ An independent project, not an official Transcend product.
 For the tested SSD256GB volume, model TSD302 uses a Realtek RTL9201 bridge (0bda:9201).
 IORegistry activity counters work. On the tested macOS 27.2 system, auto/ATA SMART reads returned
 Operation not supported by device; SAT modes returned Not a device of type scsi.
-The app reports driver required. It does not claim the SSD lacks SMART or invent temperature/endurance.
-A compatible macOS SAT SMART driver is needed. No driver or security-setting change is made by this app.
+The app reports that its current USB SMART transport is unavailable. It does not claim the SSD lacks
+SMART or invent temperature/endurance. A compatible macOS SAT driver is one possible approach;
+direct user-space USB transport has not been implemented or hardware-validated here.
+No driver or security-setting change is made by this app.
 The Apple Silicon SAT driver package was verified outside the development sandbox as signed, notarized and accepted by Gatekeeper. It has not been installed; kernel-driver approval may require user action and a restart.
 See [hardware diagnosis](docs/USB-SMART.md).
 Keeping Full Security is supported: capacity and activity remain available, while unsupported SMART

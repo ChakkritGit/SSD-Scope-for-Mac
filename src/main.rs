@@ -430,7 +430,7 @@ impl ScopeApp {
         });
         ui.add_space(8.0);
         section(ui, "USB SMART connection", |ui| {
-            ui.label("Uses bundled smartctl with auto, ATA and SAT read modes. No self-tests, firmware commands or disk writes are sent. A compatible macOS driver is still needed for USB SAT passthrough.");
+            ui.label("Experimental USB SMART support uses bundled smartctl with auto, ATA and SAT read modes. Direct USB access is not implemented. No self-tests, firmware commands or disk writes are sent.");
             if smart::helper_path().is_some() {
                 if ui.button("Check USB SMART").clicked() {
                     let id = drive.id.clone();
@@ -468,9 +468,9 @@ impl ScopeApp {
                         },
                     );
                 }
-                if report.conclusion == "driver_required" {
+                if report.conclusion == "transport_unavailable" {
                     ui.hyperlink_to(
-                        "Compatible SAT SMART driver information",
+                        "SAT SMART driver option and compatibility information",
                         "https://binaryfruit.com/drivedx/usb-drive-support",
                     );
                     ui.label(RichText::new("The app does not install kernel drivers or change your Mac's security settings.").small().color(MUTED));
@@ -819,7 +819,7 @@ impl eframe::App for ScopeApp {
                 }
             }
             ui.with_layout(egui::Layout::bottom_up(egui::Align::LEFT), |ui| {
-                ui.label(RichText::new("Independent utility · v0.2.0\nApple Silicon · macOS 14+\nNot affiliated with Transcend").small().color(MUTED));
+                ui.label(RichText::new("Experimental utility · v0.2.1\nApple Silicon · macOS 14+\nNot affiliated with Transcend").small().color(MUTED));
             });
         });
         egui::TopBottomPanel::bottom("status").show(ctx, |ui| {

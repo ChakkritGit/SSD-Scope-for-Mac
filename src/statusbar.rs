@@ -109,10 +109,13 @@ impl StatusBar {
             })
             .unwrap_or("Capacity unavailable".into()),
         );
-        self.health.set_text(format!(
-            "SMART: {}",
-            smart_state.unwrap_or(&drive.health.status)
-        ));
+        let status = match smart_state {
+            Some("transport_unavailable") => "USB transport unavailable",
+            Some("permission_denied") => "Access denied",
+            Some("available") | None => &drive.health.status,
+            Some(_) => "Unavailable",
+        };
+        self.health.set_text(format!("SMART: {status}"));
         let title = match mode {
             1 => format!("↓{read:.0} ↑{write:.0}"),
             2 => drive

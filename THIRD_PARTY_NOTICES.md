@@ -1,6 +1,6 @@
 # Third-party notices
 
-The original Rust application and geometric icons are MIT licensed. Third-party software is not
+The original Rust application, standalone C diagnostics and geometric icons are MIT licensed. Third-party software is not
 relicensed by the application's LICENSE file.
 
 ## smartmontools / smartctl 7.5

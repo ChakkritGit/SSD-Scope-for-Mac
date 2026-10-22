@@ -1,0 +1,60 @@
+# SMART implementation status and source review
+
+The target acceptance criterion is a valid temperature/health reading from the actual TSD302 SSD
+on Apple Silicon macOS. **That criterion is not met.** The existing dashboard, I/O counters and
+temporary-file regression tests do not substitute for it.
+
+## What the supplied ZIP contains
+
+Archive SHA-256: `6244107095b69f2b0db401f55de34baf00b2098d7e15f102196aeaf57faec80c`.
+The archive is System Clone / ODIN source. In `src/ODIN/ODINDlg.cpp`:
+
+- `IsTSModelName_ATA`, lines 698–727: data-in ATA pass-through via Windows
+  `DeviceIoControl(IOCTL_ATA_PASS_THROUGH_DIRECT)`, command register `0xEC`.
+- `IsTSModelName_SCSI`, lines 775–803: ATA pass-through CDB `0xA1`, embedded command `0xEC`,
+  via Windows `IOCTL_SCSI_PASS_THROUGH_DIRECT`.
+- Both functions inspect IDENTIFY DEVICE model-name words and the `TS` prefix.
+
+This search found model-identification pass-through, not an implementation of SMART temperature,
+SMART READ DATA or health/endurance interpretation. The ZIP does not provide the complete
+SSD Scope SMART suite. Windows pass-through calls cannot be reused as macOS calls.
+The ZIP and its GPL code have not been incorporated or relabeled MIT.
+
+## What has actually been checked on macOS
+
+Read-only follow-up on 2026-10-22, Full Security retained:
+
+| Path | Observed result | What it establishes |
+| --- | --- | --- |
+| Bundled smartctl auto / ATA / SAT | No valid report; see USB-SMART.md | The app's current helper path fails |
+| Apple SCSI device plug-in on the target's `IOSCSIPeripheralDeviceType00` ancestor | `0xe00002c7`, `kIOReturnUnsupported` | That driver did not expose this requested SCSI user-client interface |
+| Cached USB configuration through IOKit USB device interface 650 | Success outside the development sandbox | The device's cached USB descriptors can be read |
+| USB configuration 1, interface 0, alternate 0 | class 08, subclass 06, protocol 50, endpoints 81/02 | The descriptor advertises Bulk-Only Transport (BOT) |
+| Same interface, alternate 1 | protocol 62, endpoints 81/02/83/04 | The descriptor also advertises UAS |
+
+The initial sandboxed USB plug-in query returned `0xe00002be`; it succeeded when rerun outside
+that sandbox as the same non-root user. Sandbox failures must not be presented as proof of a
+macOS or hardware limitation.
+
+The original diagnostics in `diagnostics/` use C only to call typed Apple SDK interfaces; the app
+remains Rust. They do not open or seize the USB device, claim interfaces, obtain exclusive SCSI
+access, send SCSI commands, reset devices, unmount volumes or write disk data. They print no serials.
+
+## What is still missing
+
+The app does not implement direct USB BOT/SAT command transport or a privileged capture helper.
+Descriptor availability does not prove that SMART commands work. A separate diagnostic path could
+potentially capture the physical USB device and issue allowlisted SMART reads through BOT.
+It would require releasing the mounted drive first, authorization, timeout/recovery handling and
+real hardware validation. It cannot be claimed as continuous telemetry while macOS mounts the drive.
+
+This is a research candidate, not a delivered or verified SMART reader. The
+[libusb macOS backend](https://github.com/libusb/libusb/blob/master/libusb/os/darwin_usb.c)
+and [capture implementation discussion](https://github.com/libusb/libusb/pull/911)
+document whole-device capture with root privilege or the appropriate entitlement and user
+authorization. This is a distinct approach from installing a SAT kernel extension. Neither capture
+nor a security-policy change has been attempted here. The current project is on the target SSD,
+so capturing it during active work would interrupt that workspace.
+
+Earlier wording that a SAT driver was the only possible next step was too categorical.
+Version 0.2.1 reports `transport_unavailable` and identifies the implementation gap explicitly.

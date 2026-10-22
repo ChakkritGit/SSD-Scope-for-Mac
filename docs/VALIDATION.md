@@ -3,6 +3,10 @@
 Local validation: 2026-10-21–22, macOS 27.2 arm64, Rust 1.99.1, Xcode tools.
 The minimum supported build target is macOS 14; runtime testing used this machine only.
 
+Version 0.2.1 corrects overly broad SMART/driver claims. Additional read-only IOKit diagnostics
+are documented in [NATIVE-TRANSPORT.md](NATIVE-TRANSPORT.md). They read descriptors and query
+interface availability, not SMART data; the primary USB SMART acceptance criterion remains unmet.
+
 ## Automated checks
 
 - Release tests: 24 passed, 0 failed (8 core behavior, 16 security regressions).

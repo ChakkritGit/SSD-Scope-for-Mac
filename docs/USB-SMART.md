@@ -38,6 +38,11 @@ The app detects the bridge, reads real activity counters and reports missing SMA
 It can normalize a successful report if a compatible trusted driver exposes it later. Actual USB
 temperature/endurance reading remains unverified on this device; missing values do not establish health.
 
+See the [follow-up native transport review](NATIVE-TRANSPORT.md) for the supplied ZIP's exact
+IDENTIFY commands, the Apple SCSI interface probe and successfully read BOT/UAS descriptors.
+Direct USB transport is an implementation gap in this app; smartctl failure does not prove that
+every possible macOS approach requires a kernel extension.
+
 ## Keeping Full Security
 
 The owner chose to retain Full Security. No SAT kernel extension was installed.
