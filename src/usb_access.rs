@@ -299,7 +299,15 @@ pub fn capture(id: &str, expected_registry_id: u64, cancelled: &AtomicBool) -> R
     );
     let before = plan(id)?;
     check_capture_plan(&before, expected_registry_id)?;
-    let ctx = Context::new().context("libusb could not start")?;
+    let mut ctx = Context::new().context("libusb could not start")?;
+    // libusb's own notes (for example the IOKit result of USBInterfaceOpen) go to stderr,
+    // which the app keeps in its private read log.
+    ctx.set_log_level(rusb::LogLevel::Info);
+    eprintln!(
+        "helper: uid {} euid {}",
+        unsafe { libc::getuid() },
+        unsafe { libc::geteuid() }
+    );
     let device = matching_device(&ctx, &before.usb).context("USB bridge not found by libusb")?;
     let (input, output) = bot_endpoints(&device).context("Reading USB descriptors failed")?;
     let handle = device.open().context("Opening the USB bridge failed")?;
