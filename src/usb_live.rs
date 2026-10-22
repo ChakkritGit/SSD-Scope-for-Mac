@@ -99,10 +99,19 @@ pub fn read_now(drive: &Drive, control: &Control) -> Result<Snapshot> {
         control,
     )?;
     if unmount.code != 0 {
+        let users = volume_users(drive, control);
         bail!(
-            "macOS could not unmount {}. Close files, apps and Terminal windows using it, then try again.\n{}",
+            "macOS could not unmount {}. {}\n{}",
             drive.name,
-            unmount.text()
+            if users.is_empty() {
+                "Close files, apps and Terminal windows using it, then try again.".to_string()
+            } else {
+                format!(
+                    "These apps are using it: {}. Quit them (or change Terminal folders away from the drive), then try again.",
+                    users.join(", ")
+                )
+            },
+            unmount.text().trim()
         );
     }
     let shell = format!(
@@ -137,6 +146,56 @@ pub fn read_now(drive: &Drive, control: &Control) -> Result<Snapshot> {
     }
     let drive = drive_back?;
     usb_cache::import(&capture, &drive, &usb_cache::default_path(), control)
+}
+
+/// Names of processes with files or working folders open on the drive's volumes.
+fn volume_users(drive: &Drive, control: &Control) -> Vec<String> {
+    let mut names: Vec<String> = Vec::new();
+    for volume in &drive.volumes {
+        let Ok(output) = command::run(
+            "/usr/sbin/lsof",
+            &["-n", "-w", "-Fpc", "--", &volume.mount],
+            Duration::from_secs(20),
+            control,
+        ) else {
+            continue;
+        };
+        let text = String::from_utf8_lossy(&output.stdout).into_owned();
+        let mut pid = "";
+        for line in text.lines() {
+            if let Some(value) = line.strip_prefix('p') {
+                pid = value;
+            } else if let Some(name) = line.strip_prefix('c') {
+                let name = readable_name(name, pid, control);
+                if !names.contains(&name) {
+                    names.push(name);
+                }
+            }
+        }
+    }
+    names.truncate(8);
+    names
+}
+
+/// Some executables are named after their version (for example "2.1.308"); show the
+/// command the user started instead.
+fn readable_name(name: &str, pid: &str, control: &Control) -> String {
+    if name.chars().any(char::is_alphabetic) || pid.is_empty() {
+        return name.to_string();
+    }
+    command::run(
+        "/bin/ps",
+        &["-o", "command=", "-p", pid],
+        Duration::from_secs(5),
+        control,
+    )
+    .ok()
+    .and_then(|output| {
+        let text = String::from_utf8_lossy(&output.stdout).into_owned();
+        let first = text.split_whitespace().next()?;
+        Some(first.rsplit('/').next().unwrap_or(first).to_string())
+    })
+    .unwrap_or_else(|| name.to_string())
 }
 
 /// After the helper restores the driver macOS re-enumerates the disk; its number may change.
