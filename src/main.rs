@@ -287,7 +287,9 @@ impl ScopeApp {
         }
     }
     fn sample(&mut self) {
-        if self.last_sample.elapsed() < Duration::from_secs(1) {
+        // Leave the USB device alone while a job (such as a SMART read) is running: IOKit
+        // queries during the helper's USB capture can keep the interface busy.
+        if self.last_sample.elapsed() < Duration::from_secs(1) || self.receiver.is_some() {
             return;
         }
         self.last_sample = Instant::now();
