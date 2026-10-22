@@ -32,7 +32,7 @@ The interface is available in English and Thai (ภาษาไทย).
 
 ## Install
 
-1. Download `SSD-Scope-for-Mac-0.5.0-arm64.dmg`.
+1. Download `SSD-Scope-for-Mac-0.5.1-arm64.dmg`.
 2. Open it and drag **SSD Scope for Mac** into **Applications**.
 
 ![Drag to Applications](docs/screenshots/installer.png)
@@ -74,6 +74,11 @@ Instead, **Health → Read SMART now** reads SMART in one click:
 
 The reading is shown in the app and the menu bar until you take a new one. The app must run from
 **Applications**, not from the drive being read.
+
+Before you read, quit apps and Terminal windows that have files or folders open on the drive.
+If the unmount fails, the app lists them. Each step of the last read is written to
+`~/Library/Application Support/SSD Scope/last-smart-read.log`. The log contains steps and errors
+only, with no SMART values or serial numbers.
 
 The tested enclosure is a Transcend TSD302 with a Realtek RTL9201 bridge (0bda:9201) and a TS256GMTS830S SSD.
 See [USB SMART](docs/USB-SMART.md) and [direct USB capture](docs/DIRECT-USB.md).

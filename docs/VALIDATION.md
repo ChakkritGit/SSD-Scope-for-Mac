@@ -11,8 +11,22 @@ Version 0.5.0 adds:
 - stable code signing, so the removable-volume permission is remembered
 - a drag-to-Applications DMG
 
-**Read SMART now** was not run from this development session, because the workspace runs from the SSD
-being read. The capture path it calls is the same helper and import validated for 0.4.0.
+Version 0.5.1 fixes **Read SMART now**. It was validated on the TSD302 / RTL9201 enclosure on 2026-10-22:
+the app unmounted the drive, read SMART, mounted it again and saved the reading (log: `sudo/helper exit 0`).
+
+The earlier version started the helper with AppleScript's "with administrator privileges". The helper
+ran as root (uid 0) and detached the macOS driver. Then `IOCreatePlugInInterfaceForService` returned
+"out of resources" whenever the helper tried to claim the USB interface.
+
+An A/B test with the same signed helper, with the app closed, isolated the cause:
+
+| How the helper was started | Result |
+| --- | --- |
+| `sudo` | Read SMART successfully |
+| AppleScript administrator privileges | Failed every time |
+
+The app now runs the helper through `sudo -A -k` with a password dialog. It no longer polls IOKit
+while a read is running, and the build no longer uses the hardened runtime.
 
 Version 0.4.0 added private USB snapshot import, timestamped GUI/widget readings and normalized
 attribute tables. Additional read-only IOKit diagnostics
