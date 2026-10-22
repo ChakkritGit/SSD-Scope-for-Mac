@@ -9,7 +9,7 @@ use crate::{
 };
 use anyhow::{Context, Result, bail, ensure};
 use std::{
-    os::unix::fs::PermissionsExt,
+    os::unix::fs::{OpenOptionsExt, PermissionsExt},
     path::{Path, PathBuf},
     time::{Duration, Instant},
 };
@@ -133,19 +133,47 @@ pub fn read_now(drive: &Drive, control: &Control) -> Result<Snapshot> {
     );
     let drive_back = wait_for_volume(&drive.id, &uuids, control);
     let result = result?;
-    if result.code != 0 {
-        let detail = std::fs::read_to_string(&errors).unwrap_or_default();
-        if result.text().contains("-128") {
-            bail!("Cancelled. The drive will be mounted again by macOS.");
+    let detail = std::fs::read_to_string(&errors).unwrap_or_default();
+    let captured = std::fs::metadata(&capture).is_ok_and(|m| m.len() > 0);
+    write_log(&format!(
+        "osascript exit {}\n{}\nhelper stderr:\n{}\ncapture written: {captured}\ndrive back: {}",
+        result.code,
+        result.stderr.trim(),
+        detail.trim(),
+        match &drive_back {
+            Ok(d) => d.id.clone(),
+            Err(e) => format!("{e:#}"),
         }
+    ));
+    if result.code != 0 && result.stderr.contains("-128") {
+        bail!("Cancelled. The drive will be mounted again by macOS.");
+    }
+    // Exit 2 means SMART was read but the helper could not confirm the macOS driver was
+    // restored. The reading is still valid once the volume is back.
+    if result.code != 0 && !captured {
         bail!(
             "SMART read failed: {}{}",
             detail.trim(),
-            result.text().trim()
+            result.stderr.trim()
         );
     }
     let drive = drive_back?;
     usb_cache::import(&capture, &drive, &usb_cache::default_path(), control)
+}
+
+/// Private diagnostics for the last read (no SMART data or serials), next to the settings.
+fn write_log(text: &str) {
+    use std::io::Write;
+    let path = usb_cache::default_path().with_file_name("last-smart-read.log");
+    if let Ok(mut file) = std::fs::OpenOptions::new()
+        .create(true)
+        .write(true)
+        .truncate(true)
+        .mode(0o600)
+        .open(path)
+    {
+        let _ = writeln!(file, "time {}\n{text}", disks::unix_now());
+    }
 }
 
 /// Names of processes with files or working folders open on the drive's volumes.
@@ -200,7 +228,7 @@ fn readable_name(name: &str, pid: &str, control: &Control) -> String {
 
 /// After the helper restores the driver macOS re-enumerates the disk; its number may change.
 fn wait_for_volume(old_id: &str, uuids: &[String], control: &Control) -> Result<Drive> {
-    let deadline = Instant::now() + Duration::from_secs(45);
+    let deadline = Instant::now() + Duration::from_secs(120);
     let mut mount_requested = false;
     loop {
         if let Ok(inventory) = disks::inventory()
@@ -212,7 +240,7 @@ fn wait_for_volume(old_id: &str, uuids: &[String], control: &Control) -> Result<
         {
             return Ok(drive);
         }
-        if !mount_requested && Instant::now() + Duration::from_secs(38) > deadline {
+        if !mount_requested && Instant::now() + Duration::from_secs(105) > deadline {
             mount_requested = true;
             let _ = command::run(
                 "/usr/sbin/diskutil",

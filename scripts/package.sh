@@ -52,8 +52,8 @@ cat > "$APP/Contents/Info.plist" <<'PLIST'
 <key>CFBundleIdentifier</key><string>io.local.ssdscope.rust</string>
 <key>CFBundleExecutable</key><string>ssd-scope-mac</string>
 <key>CFBundlePackageType</key><string>APPL</string>
-<key>CFBundleShortVersionString</key><string>0.5.0</string>
-<key>CFBundleVersion</key><string>6</string>
+<key>CFBundleShortVersionString</key><string>0.5.1</string>
+<key>CFBundleVersion</key><string>7</string>
 <key>CFBundleIconFile</key><string>Scope</string>
 <key>LSMinimumSystemVersion</key><string>14.0</string>
 <key>NSHighResolutionCapable</key><true/>
@@ -76,5 +76,5 @@ sign "$APP"
 /usr/bin/codesign --verify --deep --strict "$APP"
 rm -f "$OUTPUT/SSD-Scope-for-Mac-arm64.zip"
 /usr/bin/ditto -c -k --sequesterRsrc --keepParent "$APP" "$OUTPUT/SSD-Scope-for-Mac-arm64.zip"
-"$PROJECT/scripts/make-dmg.sh" "$APP" "$OUTPUT/SSD-Scope-for-Mac-0.5.0-arm64.dmg"
+"$PROJECT/scripts/make-dmg.sh" "$APP" "$OUTPUT/SSD-Scope-for-Mac-0.5.1-arm64.dmg"
 printf 'App: %s\nSigned by: %s\nArchive: %s\n' "$APP" "$SIGN_IDENTITY" "$OUTPUT/SSD-Scope-for-Mac-arm64.zip"
