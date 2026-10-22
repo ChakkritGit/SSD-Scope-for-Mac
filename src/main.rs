@@ -281,9 +281,7 @@ impl ScopeApp {
                 "scope.help" => open_url(
                     "https://github.com/ChakkritGit/SSD-Scope-for-Mac/blob/main/docs/USB-SMART.md",
                 ),
-                "scope.project" => {
-                    open_url("https://github.com/ChakkritGit/SSD-Scope-for-Mac")
-                }
+                "scope.project" => open_url("https://github.com/ChakkritGit/SSD-Scope-for-Mac"),
                 _ => {}
             }
         }
