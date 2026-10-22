@@ -37,6 +37,16 @@ fn quote(path: &Path) -> Result<String> {
 }
 
 pub fn read_now(drive: &Drive, control: &Control) -> Result<Snapshot> {
+    start_log(drive);
+    let result = read(drive, control);
+    log_line(&match &result {
+        Ok(snapshot) => format!("result: saved reading from {}", snapshot.model),
+        Err(error) => format!("result: failed\n{error:#}"),
+    });
+    result
+}
+
+fn read(drive: &Drive, control: &Control) -> Result<Snapshot> {
     ensure!(
         !drive.internal && drive.bus == "USB",
         "Only external USB drives use this reader"
@@ -59,6 +69,7 @@ pub fn read_now(drive: &Drive, control: &Control) -> Result<Snapshot> {
         "Mount the SSD's data volume first so it can be found again after reading"
     );
     let helper = helper()?;
+    log_line("step: probe USB bridge");
     let probe = command::run(
         helper.to_str().context("Invalid helper path")?,
         &["probe", &drive.id],
@@ -92,6 +103,7 @@ pub fn read_now(drive: &Drive, control: &Control) -> Result<Snapshot> {
     std::fs::set_permissions(folder.path(), std::fs::Permissions::from_mode(0o700))?;
     let capture = folder.path().join("capture.json");
     let errors = folder.path().join("capture-error.txt");
+    log_line("step: unmount");
     let unmount = command::run(
         "/usr/sbin/diskutil",
         &["unmountDisk", &drive.id],
@@ -125,17 +137,19 @@ pub fn read_now(drive: &Drive, control: &Control) -> Result<Snapshot> {
         "do shell script \"{shell}\" with administrator privileges with prompt \"SSD Scope needs permission to read SMART data from {}. The drive is unmounted while it is read.\"",
         drive.name.replace(['"', '\\'], "")
     );
+    log_line("step: administrator approval and SMART read");
     let result = command::run(
         "/usr/bin/osascript",
         &["-e", &script],
         Duration::from_secs(300),
         control,
     );
+    log_line("step: wait for the drive to mount again");
     let drive_back = wait_for_volume(&drive.id, &uuids, control);
     let result = result?;
     let detail = std::fs::read_to_string(&errors).unwrap_or_default();
     let captured = std::fs::metadata(&capture).is_ok_and(|m| m.len() > 0);
-    write_log(&format!(
+    log_line(&format!(
         "osascript exit {}\n{}\nhelper stderr:\n{}\ncapture written: {captured}\ndrive back: {}",
         result.code,
         result.stderr.trim(),
@@ -158,21 +172,39 @@ pub fn read_now(drive: &Drive, control: &Control) -> Result<Snapshot> {
         );
     }
     let drive = drive_back?;
+    log_line("step: import reading");
     usb_cache::import(&capture, &drive, &usb_cache::default_path(), control)
 }
 
-/// Private diagnostics for the last read (no SMART data or serials), next to the settings.
-fn write_log(text: &str) {
-    use std::io::Write;
-    let path = usb_cache::default_path().with_file_name("last-smart-read.log");
+fn log_path() -> PathBuf {
+    usb_cache::default_path().with_file_name("last-smart-read.log")
+}
+
+/// Private diagnostics for the last read (steps and errors only, no SMART data or serials).
+fn start_log(drive: &Drive) {
     if let Ok(mut file) = std::fs::OpenOptions::new()
         .create(true)
         .write(true)
         .truncate(true)
         .mode(0o600)
-        .open(path)
+        .open(log_path())
     {
-        let _ = writeln!(file, "time {}\n{text}", disks::unix_now());
+        use std::io::Write;
+        let _ = writeln!(
+            file,
+            "SSD Scope {} read at {} for {} ({})",
+            env!("CARGO_PKG_VERSION"),
+            disks::unix_now(),
+            drive.id,
+            drive.bus
+        );
+    }
+}
+
+fn log_line(text: &str) {
+    if let Ok(mut file) = std::fs::OpenOptions::new().append(true).open(log_path()) {
+        use std::io::Write;
+        let _ = writeln!(file, "{text}");
     }
 }
 
