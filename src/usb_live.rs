@@ -10,7 +10,7 @@ use crate::{
 use anyhow::{Context, Result, bail, ensure};
 use std::{
     os::unix::fs::{OpenOptionsExt, PermissionsExt},
-    path::{Path, PathBuf},
+    path::PathBuf,
     time::{Duration, Instant},
 };
 
@@ -25,15 +25,6 @@ fn helper() -> Result<PathBuf> {
         "The USB SMART helper is missing. Use the packaged app from the DMG."
     );
     Ok(helper)
-}
-
-fn quote(path: &Path) -> Result<String> {
-    let text = path.to_str().context("Invalid path")?;
-    ensure!(
-        !text.contains(['\'', '"', '\\', '\n']),
-        "Unsupported characters in path"
-    );
-    Ok(format!("'{text}'"))
 }
 
 pub fn read_now(drive: &Drive, control: &Control) -> Result<Snapshot> {
@@ -102,7 +93,6 @@ fn read(drive: &Drive, control: &Control) -> Result<Snapshot> {
         .tempdir()?;
     std::fs::set_permissions(folder.path(), std::fs::Permissions::from_mode(0o700))?;
     let capture = folder.path().join("capture.json");
-    let errors = folder.path().join("capture-error.txt");
     log_line("step: unmount");
     let unmount = command::run(
         "/usr/sbin/diskutil",
@@ -126,50 +116,72 @@ fn read(drive: &Drive, control: &Control) -> Result<Snapshot> {
             unmount.text().trim()
         );
     }
-    let shell = format!(
-        "{} capture-read {} --registry-id {registry} --allow-usb-capture > {} 2> {}",
-        quote(&helper)?,
-        drive.id,
-        quote(&capture)?,
-        quote(&errors)?
+    // The helper must run through sudo. A root process started by AppleScript's
+    // "with administrator privileges" cannot open the captured USB interface
+    // (IOCreatePlugInInterfaceForService returns "out of resources"), while the same helper
+    // started by sudo can. sudo asks for the password through a small dialog script.
+    let askpass = folder.path().join("askpass");
+    std::fs::write(
+        &askpass,
+        format!(
+            "#!/bin/sh\nexec /usr/bin/osascript -e 'text returned of (display dialog \"SSD Scope needs your Mac password to read SMART data from {}. The drive is unmounted while it is read.\" default answer \"\" with hidden answer with title \"SSD Scope\" with icon caution)'\n",
+            drive.name.replace(['"', '\\', '\'', '\n'], "")
+        ),
+    )?;
+    std::fs::set_permissions(&askpass, std::fs::Permissions::from_mode(0o700))?;
+    let askpass_env = format!(
+        "SUDO_ASKPASS={}",
+        askpass.to_str().context("Invalid temporary path")?
     );
-    let script = format!(
-        "do shell script \"{shell}\" with administrator privileges with prompt \"SSD Scope needs permission to read SMART data from {}. The drive is unmounted while it is read.\"",
-        drive.name.replace(['"', '\\'], "")
-    );
+    let registry_text = registry.to_string();
     log_line("step: administrator approval and SMART read");
     let result = command::run(
-        "/usr/bin/osascript",
-        &["-e", &script],
+        "/usr/bin/env",
+        &[
+            &askpass_env,
+            "/usr/bin/sudo",
+            "-A",
+            "-k",
+            "--",
+            helper.to_str().context("Invalid helper path")?,
+            "capture-read",
+            &drive.id,
+            "--registry-id",
+            &registry_text,
+            "--allow-usb-capture",
+        ],
         Duration::from_secs(300),
         control,
     );
     log_line("step: wait for the drive to mount again");
     let drive_back = wait_for_volume(&drive.id, &uuids, control);
     let result = result?;
-    let detail = std::fs::read_to_string(&errors).unwrap_or_default();
-    let captured = std::fs::metadata(&capture).is_ok_and(|m| m.len() > 0);
+    if !result.stdout.is_empty() {
+        std::fs::write(&capture, &result.stdout)?;
+    }
+    let detail = result.stderr.trim().to_string();
+    let captured = !result.stdout.is_empty();
     log_line(&format!(
-        "osascript exit {}\n{}\nhelper stderr:\n{}\ncapture written: {captured}\ndrive back: {}",
+        "sudo/helper exit {}\nstderr:\n{detail}\ncapture written: {captured}\ndrive back: {}",
         result.code,
-        result.stderr.trim(),
-        detail.trim(),
         match &drive_back {
             Ok(d) => d.id.clone(),
             Err(e) => format!("{e:#}"),
         }
     ));
-    if result.code != 0 && result.stderr.contains("-128") {
+    if result.code != 0
+        && (detail.contains("no password was provided")
+            || detail.contains("a password is required"))
+    {
         bail!("Cancelled. The drive will be mounted again by macOS.");
+    }
+    if detail.contains("incorrect password attempts") {
+        bail!("Incorrect password. The drive will be mounted again by macOS.");
     }
     // Exit 2 means SMART was read but the helper could not confirm the macOS driver was
     // restored. The reading is still valid once the volume is back.
     if result.code != 0 && !captured {
-        bail!(
-            "SMART read failed: {}{}",
-            detail.trim(),
-            result.stderr.trim()
-        );
+        bail!("SMART read failed: {detail}");
     }
     let drive = drive_back?;
     log_line("step: import reading");
