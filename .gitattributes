@@ -1,0 +1,3 @@
+# Preserve upstream notice text, including its original whitespace.
+THIRD_PARTY_LICENSES/** -whitespace
+sources/** -whitespace

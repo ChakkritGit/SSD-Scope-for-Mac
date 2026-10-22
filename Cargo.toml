@@ -1,0 +1,39 @@
+[package]
+name = "ssd-scope-mac"
+version = "0.2.0"
+edition = "2024"
+license = "MIT"
+description = "Independent SSD monitor and file backup utility for macOS Apple Silicon"
+default-run = "ssd-scope-mac"
+
+[dependencies]
+anyhow = "1"
+eframe = { version = "0.33", default-features = false, features = ["default_fonts", "wgpu", "accesskit"] }
+egui-wgpu = { version = "0.33", default-features = false, features = ["macos-window-resize-jitter-fix"] }
+egui_plot = "0.34"
+core-foundation-sys = "0.8"
+image = { version = "0.25", default-features = false, features = ["png"] }
+muda = { version = "0.21", default-features = false }
+objc2 = "0.6"
+objc2-app-kit = { version = "0.3", default-features = false, features = ["std", "NSStatusBar", "NSStatusBarButton", "NSStatusItem", "NSButton", "NSControl", "NSView", "NSMenu", "NSImage", "NSCell", "NSResponder"] }
+objc2-foundation = { version = "0.3", default-features = false, features = ["std", "NSData", "NSString", "NSGeometry", "NSThread"] }
+libc = "0.2"
+plist = "1"
+rfd = "0.15"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sha2 = "0.10"
+tempfile = "3"
+walkdir = "2"
+
+[profile.release]
+lto = "thin"
+strip = true
+
+[[bin]]
+name = "ssd-scope-mac"
+path = "src/main.rs"
+
+[[bin]]
+name = "scope-cli"
+path = "src/bin/scope-cli.rs"

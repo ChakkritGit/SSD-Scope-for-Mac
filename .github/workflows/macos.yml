@@ -1,0 +1,27 @@
+name: macOS tests and security
+on:
+  push:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Install stable Rust and checks
+        run: |
+          rustup update stable
+          rustup component add rustfmt clippy
+      - name: Temporary-file tests
+        run: cargo test --release --locked --tests
+      - name: Lint
+        run: cargo clippy --release --locked --all-targets -- -D warnings
+      - name: Formatting
+        run: cargo fmt -- --check
+      - name: Dependency advisories
+        run: |
+          cargo install cargo-audit --locked
+          cargo audit
