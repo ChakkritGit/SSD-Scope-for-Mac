@@ -6,3 +6,8 @@ pub mod operations;
 pub mod settings;
 pub mod smart;
 pub mod telemetry;
+#[cfg(feature = "experimental-usb")]
+pub mod usb_access;
+pub mod usb_report;
+pub mod usb_safety;
+pub mod usb_sat;

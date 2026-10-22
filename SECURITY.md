@@ -1,8 +1,21 @@
 # Security
 
-The app does not run as root, install kernel drivers, disable SIP or change startup security.
-Discovery, IORegistry sampling and USB SMART probes are read-only. There is no telemetry upload,
+The dashboard does not run as root, install kernel drivers, disable SIP or change startup security.
+Discovery, IORegistry sampling and ordinary USB SMART probes are read-only. There is no telemetry upload,
 background firmware updater or raw erase/restore command.
+
+The separate `scope-usb-smart capture-read` diagnostic requires explicit administrator authorization
+and an unmounted, reviewed RTL9201 target. It temporarily captures the whole USB device and can
+interrupt access. It is never launched by dashboard polling and never unmounts a drive itself.
+Physical-disk/APFS/kernel mount checks, registry identity checks, fixed data-in command builders,
+bounded transfers and driver restoration reduce risk; they do not make untested hardware safe.
+Cancellation is cooperative. SIGKILL, power loss or a driver/backend failure can prevent cleanup;
+reconnecting the SSD may be required. Do not run it from the SSD being captured.
+See [the exact command allowlist and capture procedure](docs/DIRECT-USB.md).
+
+Captured files contain drive health data. ATA serial/WWN fields are removed, but reports should
+still be kept private. Offline report reads are bounded, reject symlinks and nonregular files,
+and never interpret a missing SMART RETURN STATUS as passing health. Decoding refuses root.
 
 Benchmarks create an exclusive unpredictable temporary file in the selected directory, disable
 its OS cache, verify read-back contents and remove only that owned file. Device paths and invalid

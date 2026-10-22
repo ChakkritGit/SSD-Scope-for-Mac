@@ -139,6 +139,16 @@ pub fn info(id: &str) -> Result<Dictionary> {
             .stdout,
     )
 }
+pub fn physical_info(id: &str) -> Result<Dictionary> {
+    let cached = crate::native::disk_description(id)?;
+    // On the tested macOS, whole-USB `diskutil info` can block in the system's
+    // low-level-format capability check. Inventory only needs cached metadata.
+    if text(&cached, "BusProtocol") == Some("USB") {
+        Ok(cached)
+    } else {
+        info(id)
+    }
+}
 pub fn inventory() -> Result<Inventory> {
     let all = parse_plist(
         &command::quick("/usr/sbin/diskutil", &["list", "-plist"])?
@@ -168,7 +178,7 @@ fn load_drive(
     all: &Dictionary,
     warnings: &mut Vec<String>,
 ) -> Result<Drive> {
-    let details = info(id)?;
+    let details = physical_info(id)?;
     let mut related = vec![physical];
     for node in array(all, "AllDisksAndPartitions") {
         if array(node, "APFSPhysicalStores").iter().any(|store| {

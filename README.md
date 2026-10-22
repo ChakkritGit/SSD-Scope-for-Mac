@@ -30,8 +30,10 @@ For the tested SSD256GB volume, model TSD302 uses a Realtek RTL9201 bridge (0bda
 IORegistry activity counters work. On the tested macOS 27.2 system, auto/ATA SMART reads returned
 Operation not supported by device; SAT modes returned Not a device of type scsi.
 The app reports that its current USB SMART transport is unavailable. It does not claim the SSD lacks
-SMART or invent temperature/endurance. A compatible macOS SAT driver is one possible approach;
-direct user-space USB transport has not been implemented or hardware-validated here.
+SMART or invent temperature/endurance. Version 0.3.0 adds a separate experimental userspace
+USB BOT/SAT reader. It is implemented and fixture-tested, but has not yet returned a valid
+SMART reading from this SSD. It requires the drive to be unmounted and administrator authorization;
+it cannot continuously monitor the SSD while macOS uses it. See [direct USB capture](docs/DIRECT-USB.md).
 No driver or security-setting change is made by this app.
 The Apple Silicon SAT driver package was verified outside the development sandbox as signed, notarized and accepted by Gatekeeper. It has not been installed; kernel-driver approval may require user action and a restart.
 See [hardware diagnosis](docs/USB-SMART.md).
@@ -50,20 +52,21 @@ older macOS versions have not been exercised.
 
 ```sh
 ./scripts/build-smartctl.sh
-./scripts/cargo.sh test --release --locked --target aarch64-apple-darwin --tests
+./scripts/build-libusb.sh
+./scripts/cargo.sh test --release --locked --features experimental-usb --tests
 ./scripts/package.sh
 ```
 
 The app and ZIP are written to the parent dist directory. The app is ad-hoc signed for local use,
 not Developer ID signed or notarized. Rust/Homebrew are not needed to run the bundle.
-The bundle includes the exact corresponding smartctl source and build instructions.
+The bundle includes the exact corresponding smartctl/libusb sources and build instructions.
 scripts/cargo.sh uses a workspace-local Rust toolchain if present; otherwise Cargo in PATH.
 
 ## Tests and security
 
 ```sh
-./scripts/cargo.sh test --release --locked --tests
-./scripts/cargo.sh clippy --release --locked --all-targets -- -D warnings
+./scripts/cargo.sh test --release --locked --features experimental-usb --tests
+./scripts/cargo.sh clippy --release --locked --features experimental-usb --all-targets -- -D warnings
 ./scripts/cargo.sh fmt -- --check
 ```
 
@@ -76,6 +79,8 @@ See [SECURITY.md](SECURITY.md) and [validation](docs/VALIDATION.md).
 
 Original Rust code and geometric icons: [MIT](LICENSE). Third-party terms remain unchanged.
 smartctl is a separate GPL-2.0-or-later executable with unmodified corresponding source and license.
+The experimental USB helper dynamically links libusb 1.0.30 under LGPL-2.1-or-later;
+its library, exact source, license and replacement instructions are included.
 The supplied Transcend System Clone / ODIN source was assessed for compatibility; its GPL code,
 Windows assets and installer are not incorporated or redistributed here, and are not relabeled MIT.
 

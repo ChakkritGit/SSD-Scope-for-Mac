@@ -1,10 +1,13 @@
 [package]
 name = "ssd-scope-mac"
-version = "0.2.1"
+version = "0.3.0"
 edition = "2024"
 license = "MIT"
 description = "Independent SSD monitor and file backup utility for macOS Apple Silicon"
 default-run = "ssd-scope-mac"
+
+[features]
+experimental-usb = ["dep:rusb"]
 
 [dependencies]
 anyhow = "1"
@@ -25,6 +28,7 @@ serde_json = "1"
 sha2 = "0.10"
 tempfile = "3"
 walkdir = "2"
+rusb = { version = "0.9.4", optional = true }
 
 [profile.release]
 lto = "thin"
@@ -37,3 +41,8 @@ path = "src/main.rs"
 [[bin]]
 name = "scope-cli"
 path = "src/bin/scope-cli.rs"
+
+[[bin]]
+name = "scope-usb-smart"
+path = "src/bin/scope-usb-smart.rs"
+required-features = ["experimental-usb"]

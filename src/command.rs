@@ -1,7 +1,7 @@
 use anyhow::{Context, Result, bail};
 use std::{
     fs::File,
-    io::Read,
+    io::{Read, Seek, SeekFrom, Write},
     process::{Command, Stdio},
     sync::{
         Arc,
@@ -49,6 +49,32 @@ pub fn run(
     timeout: Duration,
     control: &Control,
 ) -> Result<Output> {
+    run_impl(executable, args, timeout, control, None)
+}
+
+/// Bounded private file-backed stdin; the child cannot block on a full stdin pipe.
+pub fn run_input(
+    executable: &str,
+    args: &[&str],
+    timeout: Duration,
+    control: &Control,
+    input: &[u8],
+) -> Result<Output> {
+    anyhow::ensure!(input.len() <= 32 * 1024, "Subprocess input too large");
+    control.check()?;
+    let mut file = tempfile::tempfile()?;
+    file.write_all(input)?;
+    file.seek(SeekFrom::Start(0))?;
+    run_impl(executable, args, timeout, control, Some(file))
+}
+
+fn run_impl(
+    executable: &str,
+    args: &[&str],
+    timeout: Duration,
+    control: &Control,
+    input: Option<File>,
+) -> Result<Output> {
     control.check()?;
     let mut stdout = tempfile::tempfile()?;
     let mut stderr = tempfile::tempfile()?;
@@ -57,7 +83,7 @@ pub fn run(
         .current_dir("/")
         .env("LC_ALL", "C")
         .env("LANG", "en_US.UTF-8")
-        .stdin(Stdio::null())
+        .stdin(input.map(Stdio::from).unwrap_or_else(Stdio::null))
         .stdout(stdout.try_clone()?)
         .stderr(stderr.try_clone()?)
         .spawn()
@@ -88,7 +114,6 @@ pub fn run(
         thread::sleep(Duration::from_millis(100));
     };
     // cloned descriptors share offsets; explicitly rewind before reading.
-    use std::io::{Seek, SeekFrom};
     stdout.seek(SeekFrom::Start(0))?;
     stderr.seek(SeekFrom::Start(0))?;
     let mut output = Vec::new();

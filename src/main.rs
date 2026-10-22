@@ -819,7 +819,7 @@ impl eframe::App for ScopeApp {
                 }
             }
             ui.with_layout(egui::Layout::bottom_up(egui::Align::LEFT), |ui| {
-                ui.label(RichText::new("Experimental utility · v0.2.1\nApple Silicon · macOS 14+\nNot affiliated with Transcend").small().color(MUTED));
+                ui.label(RichText::new("Experimental utility · v0.3.0\nApple Silicon · macOS 14+\nNot affiliated with Transcend").small().color(MUTED));
             });
         });
         egui::TopBottomPanel::bottom("status").show(ctx, |ui| {

@@ -106,7 +106,7 @@ pub fn parse_health(value: &serde_json::Value, exit_code: i32) -> Option<Health>
 
 pub fn diagnose(id: &str, control: &Control) -> Result<SmartReport> {
     ensure!(disks::valid_id(id), "Invalid disk identifier");
-    let current = disks::info(id)?;
+    let current = disks::physical_info(id)?;
     ensure!(
         current.get("WholeDisk").and_then(plist::Value::as_boolean) == Some(true),
         "Select a physical disk"
@@ -177,7 +177,7 @@ pub fn diagnose(id: &str, control: &Control) -> Result<SmartReport> {
             && all.contains("Not a device of type 'scsi'")
         {
             report.conclusion = "transport_unavailable".into();
-            report.explanation="The app's current USB SMART transport did not return data: smartctl auto/ATA failed and its macOS SAT backend has no generic SCSI transport. Direct USB SMART access has not been implemented or validated in this app. A compatible SAT driver is one possible approach, not proof that other approaches are impossible. The SSD's SMART capability is not disproven.".into();
+            report.explanation="Live USB SMART is unavailable through the current macOS driver. A separate experimental USB snapshot reader is included, but has not yet been validated on this SSD; it requires an unmounted drive and administrator authorization. See docs/DIRECT-USB.md. The SSD's SMART capability is not disproven.".into();
         } else {
             report.explanation="No valid SMART report was returned. Review the exact device responses below; missing values do not establish the SSD's health or capability.".into();
         }

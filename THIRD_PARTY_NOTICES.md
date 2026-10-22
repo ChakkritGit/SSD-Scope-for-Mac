@@ -17,6 +17,23 @@ There are no patches. `scripts/build-smartctl.sh` provides configuration/build i
 The app bundle includes this source, COPYING, the script and executable build information.
 Keep these together when redistributing the bundle.
 
+## libusb 1.0.30
+
+Project: https://github.com/libusb/libusb
+
+License: LGPL-2.1-or-later; preserved text: `sources/LIBUSB-COPYING`.
+The experimental USB helper dynamically links the separately replaceable
+`Contents/Frameworks/libusb-1.0.0.dylib`. The original Rust code remains MIT.
+No restriction on modification or reverse engineering for debugging such modifications is imposed.
+
+Unmodified corresponding source: `sources/libusb-1.0.30.tar.bz2`, SHA-256
+`fea36f34f9156400209595e300840767ab1a385ede1dc7ee893015aea9c6dbaf`.
+`scripts/build-libusb.sh` builds locally without installing any system driver or service.
+The source, license and script are also included under `Contents/Resources/libusb-sources`.
+See [library replacement instructions](docs/DIRECT-USB.md#replacing-libusb).
+The `libusb1-sys 0.7.0` MIT bindings are used with a Cargo links override to this library;
+their older vendored libusb C implementation is not used in the official build.
+
 ## Rust dependencies
 
 Versions are locked in Cargo.lock. Source notices and license texts are preserved under

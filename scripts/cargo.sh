@@ -8,4 +8,7 @@ if [ -x "$LOCAL_TOOLCHAIN/cargo/bin/cargo" ]; then
   export PATH="$CARGO_HOME/bin:$PATH"
 fi
 cd "$PROJECT"
+if [ -f "$PROJECT/runtime/libusb-link.toml" ]; then
+  exec cargo --config "$PROJECT/runtime/libusb-link.toml" "$@"
+fi
 exec cargo "$@"

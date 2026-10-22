@@ -3,8 +3,9 @@ use anyhow::{Context, Result, ensure};
 use core_foundation_sys::{
     base::{CFRelease, CFTypeRef, kCFAllocatorDefault},
     data::{CFDataGetBytePtr, CFDataGetLength},
-    dictionary::CFMutableDictionaryRef,
+    dictionary::{CFDictionaryGetValue, CFDictionaryRef, CFMutableDictionaryRef},
     propertylist::{CFPropertyListCreateData, kCFPropertyListXMLFormat_v1_0},
+    string::CFStringRef,
 };
 use plist::{Dictionary, Value};
 use serde::{Deserialize, Serialize};
@@ -29,6 +30,24 @@ unsafe extern "C" {
     fn IORegistryEntryGetRegistryEntryID(entry: u32, id: *mut u64) -> i32;
 }
 
+#[link(name = "DiskArbitration", kind = "framework")]
+unsafe extern "C" {
+    fn DASessionCreate(allocator: *const std::ffi::c_void) -> CFTypeRef;
+    fn DADiskCreateFromBSDName(
+        allocator: *const std::ffi::c_void,
+        session: CFTypeRef,
+        name: *const c_char,
+    ) -> CFTypeRef;
+    fn DADiskCopyDescription(disk: CFTypeRef) -> CFDictionaryRef;
+    static kDADiskDescriptionMediaBSDNameKey: CFStringRef;
+    static kDADiskDescriptionMediaNameKey: CFStringRef;
+    static kDADiskDescriptionMediaSizeKey: CFStringRef;
+    static kDADiskDescriptionMediaWholeKey: CFStringRef;
+    static kDADiskDescriptionDeviceInternalKey: CFStringRef;
+    static kDADiskDescriptionDeviceModelKey: CFStringRef;
+    static kDADiskDescriptionDeviceProtocolKey: CFStringRef;
+}
+
 struct Entry(u32);
 impl Drop for Entry {
     fn drop(&mut self) {
@@ -48,6 +67,12 @@ impl Drop for Cf {
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct UsbBridge {
+    #[serde(default)]
+    pub registry_id: u64,
+    #[serde(default)]
+    pub location_id: u32,
+    #[serde(default)]
+    pub device_address: u8,
     pub vendor_id: u16,
     pub product_id: u16,
     pub revision: u16,
@@ -91,11 +116,16 @@ fn property_dict(entry: u32) -> Result<Dictionary> {
         "Cannot read IORegistry properties"
     );
     let properties = Cf(properties.cast());
+    cf_value(properties.0)?
+        .into_dictionary()
+        .context("Expected IORegistry dictionary")
+}
+fn cf_value(value: CFTypeRef) -> Result<Value> {
     let mut error = ptr::null_mut();
     let data = unsafe {
         CFPropertyListCreateData(
             kCFAllocatorDefault,
-            properties.0,
+            value,
             kCFPropertyListXMLFormat_v1_0,
             0,
             &mut error,
@@ -114,9 +144,47 @@ fn property_dict(entry: u32) -> Result<Dictionary> {
         "Unexpected IORegistry property size"
     );
     let bytes = unsafe { std::slice::from_raw_parts(CFDataGetBytePtr(data), length as usize) };
-    let result = crate::disks::parse_plist(bytes);
+    let result = Value::from_reader(std::io::Cursor::new(bytes)).map_err(Into::into);
     drop(owned);
     result
+}
+
+/// Cached Disk Arbitration metadata. Does not open the raw disk or query format capability.
+pub fn disk_description(id: &str) -> Result<Dictionary> {
+    ensure!(crate::disks::valid_id(id), "Invalid device identifier");
+    let name = CString::new(id)?;
+    let session = unsafe { DASessionCreate(kCFAllocatorDefault) };
+    ensure!(!session.is_null(), "Cannot create Disk Arbitration session");
+    let session = Cf(session);
+    let disk = unsafe { DADiskCreateFromBSDName(kCFAllocatorDefault, session.0, name.as_ptr()) };
+    ensure!(!disk.is_null(), "Disk is no longer available");
+    let disk = Cf(disk);
+    let description = unsafe { DADiskCopyDescription(disk.0) };
+    ensure!(!description.is_null(), "No Disk Arbitration description");
+    let _description = Cf(description.cast());
+    let fields = unsafe {
+        [
+            ("DeviceIdentifier", kDADiskDescriptionMediaBSDNameKey),
+            ("MediaName", kDADiskDescriptionMediaNameKey),
+            ("TotalSize", kDADiskDescriptionMediaSizeKey),
+            ("WholeDisk", kDADiskDescriptionMediaWholeKey),
+            ("Internal", kDADiskDescriptionDeviceInternalKey),
+            ("DeviceModel", kDADiskDescriptionDeviceModelKey),
+            ("BusProtocol", kDADiskDescriptionDeviceProtocolKey),
+        ]
+    };
+    let mut result = Dictionary::new();
+    for (name, key) in fields {
+        let value = unsafe { CFDictionaryGetValue(description, key.cast()) };
+        if !value.is_null() {
+            result.insert(name.into(), cf_value(value)?);
+        }
+    }
+    ensure!(
+        result.get("DeviceIdentifier").and_then(Value::as_string) == Some(id),
+        "Disk Arbitration identity mismatch"
+    );
+    Ok(result)
 }
 pub fn inspect(id: &str) -> Result<RegistrySnapshot> {
     ensure!(crate::disks::valid_id(id), "Invalid device identifier");
@@ -176,7 +244,15 @@ pub fn inspect(id: &str) -> Result<RegistrySnapshot> {
             }
             if class_name == "IOUSBHostDevice" {
                 let num = |key: &str| p.get(key).and_then(Value::as_unsigned_integer);
+                let mut registry_id = 0;
+                ensure!(
+                    unsafe { IORegistryEntryGetRegistryEntryID(entry.0, &mut registry_id) } == 0,
+                    "Cannot read USB registry identity"
+                );
                 snapshot.usb = Some(UsbBridge {
+                    registry_id,
+                    location_id: num("locationID").unwrap_or(0) as u32,
+                    device_address: num("USB Address").unwrap_or(0) as u8,
                     vendor_id: num("idVendor").context("Missing USB vendor ID")? as u16,
                     product_id: num("idProduct").context("Missing USB product ID")? as u16,
                     revision: num("bcdDevice").unwrap_or(0) as u16,

@@ -16,11 +16,14 @@ jobs:
           rustup update stable
           rustup component add rustfmt clippy
       - name: Temporary-file tests
-        run: cargo test --release --locked --tests
+        run: |
+          ./scripts/build-smartctl.sh
+          ./scripts/build-libusb.sh
+          ./scripts/cargo.sh test --release --locked --features experimental-usb --tests
       - name: Lint
-        run: cargo clippy --release --locked --all-targets -- -D warnings
+        run: ./scripts/cargo.sh clippy --release --locked --features experimental-usb --all-targets -- -D warnings
       - name: Formatting
-        run: cargo fmt -- --check
+        run: ./scripts/cargo.sh fmt -- --check
       - name: Dependency advisories
         run: |
           cargo install cargo-audit --locked

@@ -11,6 +11,11 @@ fn main() {
 fn execute() -> Result<()> {
     let args: Vec<_> = std::env::args().skip(1).collect();
     match args.first().map(String::as_str) {
+        Some("decode-usb-report") if args.len() == 2 => {
+            let raw = ssd_scope_mac::usb_report::load(Path::new(&args[1]))?;
+            let report = ssd_scope_mac::usb_report::decode(&raw, &Control::default())?;
+            println!("{}", serde_json::to_string_pretty(&report)?);
+        }
         Some("inventory") if args.len() == 1 => {
             println!("{}", serde_json::to_string_pretty(&disks::inventory()?)?)
         }
@@ -48,7 +53,7 @@ fn execute() -> Result<()> {
             .display()
         ),
         None | Some("--help") => println!(
-            "scope-cli inventory\nscope-cli smart diskN\nscope-cli benchmark /test/folder\nscope-cli backup /source/folder /destination/parent\n\nbenchmark writes then removes a new 256 MiB temporary file.\nbackup creates a NEW file backup and verifies regular-file SHA-256. No erase or raw clone commands."
+            "scope-cli inventory\nscope-cli smart diskN\nscope-cli decode-usb-report /capture.json\nscope-cli benchmark /test/folder\nscope-cli backup /source/folder /destination/parent\n\nUSB reports are decoded offline as a regular user.\nbenchmark writes then removes a new 256 MiB temporary file.\nbackup creates a NEW file backup and verifies regular-file SHA-256. No erase or raw clone commands."
         ),
         _ => bail!("Invalid command. Use --help"),
     }

@@ -40,21 +40,24 @@ The original diagnostics in `diagnostics/` use C only to call typed Apple SDK in
 remains Rust. They do not open or seize the USB device, claim interfaces, obtain exclusive SCSI
 access, send SCSI commands, reset devices, unmount volumes or write disk data. They print no serials.
 
-## What is still missing
+## Experimental transport in version 0.3.0
 
-The app does not implement direct USB BOT/SAT command transport or a privileged capture helper.
-Descriptor availability does not prove that SMART commands work. A separate diagnostic path could
-potentially capture the physical USB device and issue allowlisted SMART reads through BOT.
-It would require releasing the mounted drive first, authorization, timeout/recovery handling and
-real hardware validation. It cannot be claimed as continuous telemetry while macOS mounts the drive.
+The separate `scope-usb-smart` helper now implements fixed BOT/SAT data-in commands with
+rusb and libusb 1.0.30. Read-only `probe` matched the actual registry ID, USB address and cached
+BOT descriptor; both disk inventory and the kernel mount check found `/Volumes/SSD256GB`.
+Capture refuses that mounted state. Protocol, mount guards and offline decoding are fixture-tested.
+No USB capture or actual SMART read has been attempted with this helper yet.
 
-This is a research candidate, not a delivered or verified SMART reader. The
+This remains an unverified hardware path. The
 [libusb macOS backend](https://github.com/libusb/libusb/blob/master/libusb/os/darwin_usb.c)
 and [capture implementation discussion](https://github.com/libusb/libusb/pull/911)
 document whole-device capture with root privilege or the appropriate entitlement and user
 authorization. This is a distinct approach from installing a SAT kernel extension. Neither capture
 nor a security-policy change has been attempted here. The current project is on the target SSD,
 so capturing it during active work would interrupt that workspace.
+
+See [DIRECT-USB.md](DIRECT-USB.md) for the implemented allowlist, recovery limits and staged
+procedure. A one-time capture is not continuous telemetry while macOS mounts the drive.
 
 Earlier wording that a SAT driver was the only possible next step was too categorical.
 Version 0.2.1 reports `transport_unavailable` and identifies the implementation gap explicitly.
